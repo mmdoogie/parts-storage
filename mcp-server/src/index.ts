@@ -487,6 +487,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: 'number',
               description: 'New number of internal rows',
             },
+            gridColumnStart: {
+              type: 'number',
+              description: 'Starting column position on the wall grid',
+            },
+            gridColumnSpan: {
+              type: 'number',
+              description: 'Number of columns the case spans',
+            },
+            gridRowStart: {
+              type: 'number',
+              description: 'Starting row position on the wall grid',
+            },
+            gridRowSpan: {
+              type: 'number',
+              description: 'Number of rows the case spans',
+            },
           },
           required: ['caseId'],
         },
@@ -1038,18 +1054,36 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'update_case': {
-        const { caseId, name, color, internalColumns, internalRows } = args as {
+        const {
+          caseId,
+          name,
+          color,
+          internalColumns,
+          internalRows,
+          gridColumnStart,
+          gridColumnSpan,
+          gridRowStart,
+          gridRowSpan,
+        } = args as {
           caseId: number;
           name?: string;
           color?: string;
           internalColumns?: number;
           internalRows?: number;
+          gridColumnStart?: number;
+          gridColumnSpan?: number;
+          gridRowStart?: number;
+          gridRowSpan?: number;
         };
         const caseData = await apiRequest<Case>(`/cases/${caseId}`, 'PUT', {
           name,
           color,
           internalColumns,
           internalRows,
+          gridColumnStart,
+          gridColumnSpan,
+          gridRowStart,
+          gridRowSpan,
         });
         return {
           content: [
