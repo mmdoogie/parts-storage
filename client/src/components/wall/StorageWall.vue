@@ -4,6 +4,9 @@ import type { Case } from '@/types'
 import { useSearchStore } from '@/stores'
 import StorageCase from '@/components/case/StorageCase.vue'
 
+// Reference to the wall element for consistent position calculations
+const wallRef = ref<HTMLElement | null>(null)
+
 interface Props {
   cases: Case[]
   gridColumns?: number
@@ -89,11 +92,15 @@ function isValidCaseDropPosition(col: number, row: number): boolean {
 
 // Calculate grid position from mouse coordinates
 function calculateGridPosition(event: DragEvent): { col: number; row: number } {
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  // Always use the wall element for consistent calculations
+  const wall = wallRef.value
+  if (!wall) return { col: 1, row: 1 }
+
+  const rect = wall.getBoundingClientRect()
   const x = event.clientX - rect.left
   const y = event.clientY - rect.top
 
-  const computedStyle = getComputedStyle(event.currentTarget as HTMLElement)
+  const computedStyle = getComputedStyle(wall)
   const paddingLeft = parseFloat(computedStyle.paddingLeft) || 24
   const paddingTop = parseFloat(computedStyle.paddingTop) || 24
 
@@ -152,10 +159,10 @@ function handleWallDrop(event: DragEvent) {
     return
   }
 
-  const { col, row } = calculateGridPosition(event)
-
-  if (isValidCaseDropPosition(col, row)) {
-    emit('case-move', caseId, col, row)
+  // Use the preview position if available (it's already validated)
+  // This ensures drop matches exactly what the user saw
+  if (previewPosition.value && previewPosition.value.isValid) {
+    emit('case-move', caseId, previewPosition.value.col, previewPosition.value.row)
   }
 
   handleCaseDragEnd()
@@ -164,6 +171,7 @@ function handleWallDrop(event: DragEvent) {
 
 <template>
   <div
+    ref="wallRef"
     class="storage-wall"
     :class="{ 'is-dragging-case': isDraggingCase }"
     :style="gridStyle"
