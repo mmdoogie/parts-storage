@@ -65,7 +65,13 @@
 /* Drawer front styling */
 .skeu-drawer {
   position: relative;
-  background: var(--gradient-drawer-front);
+  /* Use variables directly instead of --gradient-drawer-front so element-scoped vars are used */
+  background: linear-gradient(
+    180deg,
+    var(--drawer-highlight, #f5f0e8) 0%,
+    var(--drawer-base, #e8dcc8) 30%,
+    var(--drawer-shadow, #d4c4a8) 100%
+  );
   border-radius: var(--radius-sm);
   border-top: var(--border-raised);
   border-left: var(--border-raised);
@@ -113,16 +119,16 @@
     inset 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
-/* Drawer pull handle */
+/* Drawer pull handle - dimensions scale with element-scoped --pull-width and --pull-height */
 .skeu-pull {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: var(--pull-width);
-  height: var(--pull-height);
+  width: var(--pull-width, 40px);
+  height: var(--pull-height, 12px);
   background: var(--gradient-metal-pull);
-  border-radius: var(--pull-radius);
+  border-radius: var(--pull-radius, 3px);
   border-top: 1px solid var(--metal-highlight);
   border-bottom: 1px solid var(--metal-dark);
   box-shadow:

@@ -145,6 +145,8 @@ function isHighlighted(drawerId: number): boolean {
   grid-row: var(--case-row-start) / span var(--case-row-span);
   display: flex;
   flex-direction: column;
+  min-height: 0; /* Allow case to fit within wall grid constraints */
+  overflow: hidden;
 }
 
 
@@ -210,10 +212,12 @@ function isHighlighted(drawerId: number): boolean {
 .case-grid {
   display: grid;
   grid-template-columns: repeat(var(--case-columns), 1fr);
-  grid-template-rows: repeat(var(--case-rows), minmax(40px, 1fr));
+  grid-template-rows: repeat(var(--case-rows), 1fr);
   gap: 3px;
   flex: 1;
+  min-height: 0; /* Allow grid to shrink below content size */
   padding: var(--spacing-xs);
+  overflow: hidden;
 }
 
 /* Responsive adjustments */
@@ -221,6 +225,13 @@ function isHighlighted(drawerId: number): boolean {
   .storage-case {
     grid-column: 1 / -1 !important;
     grid-row: auto !important;
+    /* On mobile, give case a minimum height based on internal rows */
+    min-height: calc(var(--case-rows) * 50px + var(--spacing-lg));
+  }
+
+  .case-grid {
+    /* On mobile, use a minimum row height since we're not constrained by wall grid */
+    grid-template-rows: repeat(var(--case-rows), minmax(40px, 1fr));
   }
 }
 </style>

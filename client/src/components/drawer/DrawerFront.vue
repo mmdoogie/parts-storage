@@ -76,11 +76,29 @@ const drawerShadow = computed(() => {
   return `hsl(${hsl.h}, ${newS}%, ${newL}%)`
 })
 
+// Scale pull handle based on drawer size
+const pullDimensions = computed(() => {
+  const widthUnits = props.drawer.drawerSize?.widthUnits ?? 1
+
+  // Base width for a 1x1 drawer, scales with drawer width
+  const baseWidth = 20
+  const pullWidth = Math.min(baseWidth + (widthUnits - 1) * 12, 60)
+
+  return {
+    width: `${pullWidth}px`,
+    height: '12px',
+    radius: '3px'
+  }
+})
+
 const drawerStyle = computed(() => ({
   '--drawer-color': props.drawer.color,
   '--drawer-base': lightenedCaseColor.value,
   '--drawer-highlight': drawerHighlight.value,
-  '--drawer-shadow': drawerShadow.value
+  '--drawer-shadow': drawerShadow.value,
+  '--pull-width': pullDimensions.value.width,
+  '--pull-height': pullDimensions.value.height,
+  '--pull-radius': pullDimensions.value.radius
 }))
 
 // Aggregate categories from all parts in the drawer
@@ -150,7 +168,7 @@ function handleDragEnd() {
 <style scoped>
 .drawer-front {
   height: 100%;
-  min-height: 40px;
+  min-height: 0; /* Allow drawer to shrink to fit within case */
   position: relative;
 }
 

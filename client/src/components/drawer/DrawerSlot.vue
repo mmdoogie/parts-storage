@@ -187,7 +187,7 @@ async function handleDropEvent(event: DragEvent) {
 .drawer-slot {
   grid-column: var(--drawer-col) / span var(--drawer-col-span);
   grid-row: var(--drawer-row) / span var(--drawer-row-span);
-  min-height: 40px;
+  min-height: 0; /* Allow slots to shrink to fit within case */
   position: relative;
   border: 2px solid transparent;
   border-radius: var(--radius-sm);

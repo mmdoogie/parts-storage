@@ -223,7 +223,7 @@ function handleWallDrop(event: DragEvent) {
 <style scoped>
 .storage-wall {
   display: grid;
-  grid-template-columns: repeat(var(--wall-columns, 12), 80px);
+  grid-template-columns: repeat(var(--wall-columns, 12), 1fr);
   grid-template-rows: repeat(var(--wall-rows, 3), 80px);
   gap: var(--wall-gap, 16px);
   padding: var(--wall-padding, 24px);
@@ -250,14 +250,15 @@ function handleWallDrop(event: DragEvent) {
 
 @media (max-width: 767px) {
   .storage-wall {
-    grid-template-columns: repeat(var(--wall-columns, 12), 60px);
-    grid-template-rows: repeat(var(--wall-rows, 3), 60px);
+    /* On mobile, switch to single-column auto-flow layout */
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-auto-rows: auto;
   }
 }
 
 @media (min-width: 768px) and (max-width: 1023px) {
   .storage-wall {
-    grid-template-columns: repeat(var(--wall-columns, 12), 70px);
     grid-template-rows: repeat(var(--wall-rows, 3), 70px);
   }
 }
