@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { Case, Drawer } from '@/types'
 import DrawerSlot from '@/components/drawer/DrawerSlot.vue'
 
@@ -16,7 +16,32 @@ const emit = defineEmits<{
   'drawer-click': [drawerId: number]
   'add-drawer': [caseId: number, column: number, row: number]
   'edit-case': [caseId: number]
+  'case-drag-start': [caseId: number, event: DragEvent]
+  'case-drag-end': []
 }>()
+
+
+function handleCaseDragStart(event: DragEvent) {
+  const dragPayload = JSON.stringify({
+    type: 'case',
+    id: props.caseData.id,
+    columnSpan: props.caseData.gridColumnSpan,
+    rowSpan: props.caseData.gridRowSpan
+  })
+
+  event.dataTransfer!.effectAllowed = 'move'
+  event.dataTransfer!.setData('text/plain', dragPayload)
+  event.dataTransfer!.setData('application/json', dragPayload)
+
+  // Emit after a microtask to avoid re-render during dragstart
+  setTimeout(() => {
+    emit('case-drag-start', props.caseData.id, event)
+  }, 0)
+}
+
+function handleCaseDragEnd() {
+  emit('case-drag-end')
+}
 
 const caseStyle = computed(() => ({
   '--case-col-start': props.caseData.gridColumnStart,
@@ -70,12 +95,21 @@ function isHighlighted(drawerId: number): boolean {
 </script>
 
 <template>
-  <div class="storage-case skeu-case" :style="caseStyle">
-    <header class="case-header">
+  <div
+    class="storage-case skeu-case"
+    :style="caseStyle"
+  >
+    <header
+      class="case-header"
+      draggable="true"
+      @dragstart="handleCaseDragStart"
+      @dragend="handleCaseDragEnd"
+    >
       <h3 class="case-title">{{ caseData.name }}</h3>
       <button
         class="case-settings-btn"
         @click.stop="emit('edit-case', caseData.id)"
+        @mousedown.stop
         title="Case settings"
         aria-label="Edit case settings"
       >
@@ -112,6 +146,7 @@ function isHighlighted(drawerId: number): boolean {
   flex-direction: column;
 }
 
+
 .case-header {
   padding: var(--spacing-xs) var(--spacing-sm);
   margin-bottom: var(--spacing-xs);
@@ -119,6 +154,11 @@ function isHighlighted(drawerId: number): boolean {
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-xs);
+  cursor: grab;
+}
+
+.case-header:active {
+  cursor: grabbing;
 }
 
 .case-title {
@@ -169,7 +209,7 @@ function isHighlighted(drawerId: number): boolean {
 .case-grid {
   display: grid;
   grid-template-columns: repeat(var(--case-columns), 1fr);
-  grid-template-rows: repeat(var(--case-rows), 1fr);
+  grid-template-rows: repeat(var(--case-rows), minmax(40px, 1fr));
   gap: 3px;
   flex: 1;
   padding: var(--spacing-xs);

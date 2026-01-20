@@ -160,9 +160,36 @@ function handleAddDrawer(caseId: number, column: number, row: number) {
   addDrawerCaseId.value = caseId
   addDrawerColumn.value = column
   addDrawerRow.value = row
-  addDrawerSizeId.value = drawerStore.drawerSizes[0]?.id || null
   addDrawerName.value = ''
   isAddingDrawer.value = true
+
+  // Find the first valid drawer size, or default to the first one
+  const validSize = drawerStore.drawerSizes.find(size => {
+    const caseData = cases.value.find(c => c.id === caseId)
+    if (!caseData) return false
+
+    // Check bounds
+    if (column + size.widthUnits - 1 > caseData.internalColumns) return false
+    if (row + size.heightUnits - 1 > caseData.internalRows) return false
+
+    // Check collisions
+    if (caseData.drawers) {
+      for (const drawer of caseData.drawers) {
+        const drawerWidth = drawer.drawerSize?.widthUnits ?? 1
+        const drawerHeight = drawer.drawerSize?.heightUnits ?? 1
+
+        const xOverlap = column < drawer.gridColumn + drawerWidth &&
+                         column + size.widthUnits > drawer.gridColumn
+        const yOverlap = row < drawer.gridRow + drawerHeight &&
+                         row + size.heightUnits > drawer.gridRow
+
+        if (xOverlap && yOverlap) return false
+      }
+    }
+    return true
+  })
+
+  addDrawerSizeId.value = validSize?.id || null
 }
 
 function closeAddDrawerModal() {
@@ -208,6 +235,87 @@ const addDrawerCaseName = computed(() => {
   return caseData?.name || 'Unknown Case'
 })
 
+// Get the case data for the add drawer modal
+const addDrawerCase = computed(() => {
+  if (!addDrawerCaseId.value) return null
+  return cases.value.find(c => c.id === addDrawerCaseId.value) || null
+})
+
+// Check if a drawer size is valid at the selected position
+function isDrawerSizeValid(sizeId: number): boolean {
+  const caseData = addDrawerCase.value
+  if (!caseData) return false
+
+  const size = drawerStore.drawerSizes.find(s => s.id === sizeId)
+  if (!size) return false
+
+  const col = addDrawerColumn.value
+  const row = addDrawerRow.value
+  const widthUnits = size.widthUnits
+  const heightUnits = size.heightUnits
+
+  // Check bounds
+  if (col + widthUnits - 1 > caseData.internalColumns) return false
+  if (row + heightUnits - 1 > caseData.internalRows) return false
+
+  // Check for collisions with existing drawers
+  if (caseData.drawers) {
+    for (const drawer of caseData.drawers) {
+      const drawerWidth = drawer.drawerSize?.widthUnits ?? 1
+      const drawerHeight = drawer.drawerSize?.heightUnits ?? 1
+
+      // AABB collision detection
+      const xOverlap = col < drawer.gridColumn + drawerWidth &&
+                       col + widthUnits > drawer.gridColumn
+      const yOverlap = row < drawer.gridRow + drawerHeight &&
+                       row + heightUnits > drawer.gridRow
+
+      if (xOverlap && yOverlap) return false
+    }
+  }
+
+  return true
+}
+
+// Get validation message for a drawer size
+function getDrawerSizeValidationMessage(sizeId: number): string {
+  const caseData = addDrawerCase.value
+  if (!caseData) return ''
+
+  const size = drawerStore.drawerSizes.find(s => s.id === sizeId)
+  if (!size) return ''
+
+  const col = addDrawerColumn.value
+  const row = addDrawerRow.value
+  const widthUnits = size.widthUnits
+  const heightUnits = size.heightUnits
+
+  // Check bounds
+  if (col + widthUnits - 1 > caseData.internalColumns) {
+    return 'Exceeds case width'
+  }
+  if (row + heightUnits - 1 > caseData.internalRows) {
+    return 'Exceeds case height'
+  }
+
+  // Check for collisions
+  if (caseData.drawers) {
+    for (const drawer of caseData.drawers) {
+      const drawerWidth = drawer.drawerSize?.widthUnits ?? 1
+      const drawerHeight = drawer.drawerSize?.heightUnits ?? 1
+
+      const xOverlap = col < drawer.gridColumn + drawerWidth &&
+                       col + widthUnits > drawer.gridColumn
+      const yOverlap = row < drawer.gridRow + drawerHeight &&
+                       row + heightUnits > drawer.gridRow
+
+      if (xOverlap && yOverlap) return 'Overlaps existing drawer'
+    }
+  }
+
+  return ''
+}
+
 // Edit case functions
 function handleEditCase(caseId: number) {
   const caseData = cases.value.find(c => c.id === caseId)
@@ -228,6 +336,30 @@ async function handleCaseUpdated(updatedCase: Case) {
   // Refresh the wall to get the complete updated data
   if (wallStore.currentWall) {
     await wallStore.fetchWall(wallStore.currentWall.id)
+  }
+}
+
+async function handleCaseDeleted(caseId: number) {
+  // Remove the case from the wall store
+  wallStore.removeCaseFromWall(caseId)
+  // Refresh the wall to get the updated data
+  if (wallStore.currentWall) {
+    await wallStore.fetchWall(wallStore.currentWall.id)
+  }
+}
+
+async function handleCaseMove(caseId: number, newColumn: number, newRow: number) {
+  try {
+    await caseService.updateCasePosition(caseId, {
+      gridColumnStart: newColumn,
+      gridRowStart: newRow
+    })
+    // Refresh the wall to get the updated positions
+    if (wallStore.currentWall) {
+      await wallStore.fetchWall(wallStore.currentWall.id)
+    }
+  } catch (e) {
+    console.error('Failed to move case:', e)
   }
 }
 </script>
@@ -264,6 +396,7 @@ async function handleCaseUpdated(updatedCase: Case) {
         @drawer-click="handleDrawerClick"
         @add-drawer="handleAddDrawer"
         @edit-case="handleEditCase"
+        @case-move="handleCaseMove"
       />
 
       <div v-else class="empty-state">
@@ -398,11 +531,19 @@ async function handleCaseUpdated(updatedCase: Case) {
               v-for="size in drawerStore.drawerSizes"
               :key="size.id"
               class="size-option"
-              :class="{ selected: addDrawerSizeId === size.id }"
-              @click="addDrawerSizeId = size.id"
+              :class="{
+                selected: addDrawerSizeId === size.id,
+                disabled: !isDrawerSizeValid(size.id)
+              }"
+              :disabled="!isDrawerSizeValid(size.id)"
+              :title="getDrawerSizeValidationMessage(size.id)"
+              @click="isDrawerSizeValid(size.id) && (addDrawerSizeId = size.id)"
             >
               <span class="size-name">{{ size.name }}</span>
               <span class="size-desc">{{ size.widthUnits }}x{{ size.heightUnits }}</span>
+              <span v-if="!isDrawerSizeValid(size.id)" class="size-invalid">
+                {{ getDrawerSizeValidationMessage(size.id) }}
+              </span>
             </button>
           </div>
         </div>
@@ -412,7 +553,11 @@ async function handleCaseUpdated(updatedCase: Case) {
         <BaseButton variant="ghost" @click="closeAddDrawerModal">
           Cancel
         </BaseButton>
-        <BaseButton @click="createDrawer" :loading="addDrawerLoading" :disabled="!addDrawerSizeId">
+        <BaseButton
+          @click="createDrawer"
+          :loading="addDrawerLoading"
+          :disabled="!addDrawerSizeId || !isDrawerSizeValid(addDrawerSizeId)"
+        >
           Create Drawer
         </BaseButton>
       </template>
@@ -422,8 +567,10 @@ async function handleCaseUpdated(updatedCase: Case) {
     <CasePropertiesModal
       :open="isEditingCase"
       :case-data="editingCaseData"
+      :wall-grid-columns="gridColumns"
       @close="closeEditCaseModal"
       @updated="handleCaseUpdated"
+      @deleted="handleCaseDeleted"
     />
   </div>
 </template>
@@ -621,5 +768,23 @@ async function handleCaseUpdated(updatedCase: Case) {
 .size-desc {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
+}
+
+.size-option.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: rgba(231, 76, 60, 0.3);
+  background: rgba(231, 76, 60, 0.05);
+}
+
+.size-option.disabled:hover {
+  border-color: rgba(231, 76, 60, 0.3);
+  transform: none;
+}
+
+.size-invalid {
+  font-size: var(--font-size-xs);
+  color: var(--color-danger);
+  font-weight: 500;
 }
 </style>

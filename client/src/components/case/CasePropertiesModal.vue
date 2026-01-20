@@ -10,13 +10,17 @@ import ColorPicker from '@/components/category/ColorPicker.vue'
 interface Props {
   open: boolean
   caseData: Case | null
+  wallGridColumns?: number
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  wallGridColumns: 12
+})
 
 const emit = defineEmits<{
   close: []
   updated: [caseData: Case]
+  deleted: [caseId: number]
 }>()
 
 const caseStore = useCaseStore()
@@ -27,9 +31,19 @@ const internalColumns = ref(4)
 const internalRows = ref(6)
 const color = ref('#8B7355')
 
+// Grid position state
+const gridColumnStart = ref(1)
+const gridColumnSpan = ref(4)
+const gridRowStart = ref(1)
+const gridRowSpan = ref(3)
+
 // Loading and error state
 const saving = ref(false)
+const deleting = ref(false)
 const errorMessage = ref('')
+
+// Delete confirmation
+const showDeleteConfirm = ref(false)
 
 // Grid change warning
 const showGridWarning = ref(false)
@@ -56,10 +70,15 @@ watch(() => props.caseData, (newCaseData) => {
     internalColumns.value = newCaseData.internalColumns
     internalRows.value = newCaseData.internalRows
     color.value = newCaseData.color
+    gridColumnStart.value = newCaseData.gridColumnStart
+    gridColumnSpan.value = newCaseData.gridColumnSpan
+    gridRowStart.value = newCaseData.gridRowStart
+    gridRowSpan.value = newCaseData.gridRowSpan
     showGridWarning.value = false
     gridWarningMessage.value = ''
     affectedDrawerCount.value = 0
     errorMessage.value = ''
+    showDeleteConfirm.value = false
   }
 }, { immediate: true })
 
@@ -90,8 +109,17 @@ const hasChanges = computed(() => {
     name.value !== props.caseData.name ||
     internalColumns.value !== props.caseData.internalColumns ||
     internalRows.value !== props.caseData.internalRows ||
-    color.value !== props.caseData.color
+    color.value !== props.caseData.color ||
+    gridColumnStart.value !== props.caseData.gridColumnStart ||
+    gridColumnSpan.value !== props.caseData.gridColumnSpan ||
+    gridRowStart.value !== props.caseData.gridRowStart ||
+    gridRowSpan.value !== props.caseData.gridRowSpan
   )
+})
+
+// Computed max values for position inputs
+const maxColumnStart = computed(() => {
+  return props.wallGridColumns - gridColumnSpan.value + 1
 })
 
 async function saveChanges() {
@@ -105,7 +133,11 @@ async function saveChanges() {
       name: name.value,
       internalColumns: internalColumns.value,
       internalRows: internalRows.value,
-      color: color.value
+      color: color.value,
+      gridColumnStart: gridColumnStart.value,
+      gridColumnSpan: gridColumnSpan.value,
+      gridRowStart: gridRowStart.value,
+      gridRowSpan: gridRowSpan.value
     })
 
     emit('updated', updatedCase)
@@ -114,6 +146,24 @@ async function saveChanges() {
     errorMessage.value = e instanceof Error ? e.message : 'Failed to save changes'
   } finally {
     saving.value = false
+  }
+}
+
+async function handleDelete() {
+  if (!props.caseData) return
+
+  deleting.value = true
+  errorMessage.value = ''
+
+  try {
+    await caseStore.deleteCase(props.caseData.id)
+    emit('deleted', props.caseData.id)
+    emit('close')
+  } catch (e) {
+    errorMessage.value = e instanceof Error ? e.message : 'Failed to delete case'
+  } finally {
+    deleting.value = false
+    showDeleteConfirm.value = false
   }
 }
 
@@ -142,9 +192,58 @@ function handleClose() {
         placeholder="Enter case name..."
       />
 
+      <!-- Wall Position -->
+      <div class="form-section">
+        <label class="section-label">Wall Position</label>
+        <p class="section-description">
+          Position and size of the case on the storage wall.
+        </p>
+        <div class="position-grid">
+          <div class="dimension-field">
+            <label>Column</label>
+            <input
+              type="number"
+              v-model.number="gridColumnStart"
+              :min="1"
+              :max="maxColumnStart"
+            />
+          </div>
+          <div class="dimension-field">
+            <label>Row</label>
+            <input
+              type="number"
+              v-model.number="gridRowStart"
+              :min="1"
+            />
+          </div>
+          <div class="dimension-field">
+            <label>Width</label>
+            <input
+              type="number"
+              v-model.number="gridColumnSpan"
+              :min="1"
+              :max="wallGridColumns"
+            />
+          </div>
+          <div class="dimension-field">
+            <label>Height</label>
+            <input
+              type="number"
+              v-model.number="gridRowSpan"
+              :min="1"
+              :max="10"
+            />
+          </div>
+        </div>
+        <p class="dimension-hint">
+          Position: Column {{ gridColumnStart }}-{{ gridColumnStart + gridColumnSpan - 1 }},
+          Row {{ gridRowStart }}-{{ gridRowStart + gridRowSpan - 1 }}
+        </p>
+      </div>
+
       <!-- Grid Dimensions -->
       <div class="form-section">
-        <label class="section-label">Grid Dimensions</label>
+        <label class="section-label">Internal Grid</label>
         <p class="section-description">
           Define the internal drawer grid for this case.
         </p>
@@ -234,6 +333,32 @@ function handleClose() {
           </div>
         </div>
       </div>
+
+      <!-- Danger Zone -->
+      <div class="form-section danger-zone">
+        <label class="section-label danger-label">Danger Zone</label>
+        <div v-if="!showDeleteConfirm" class="delete-section">
+          <p class="section-description">
+            Permanently delete this case and all its drawers.
+          </p>
+          <BaseButton variant="danger" @click="showDeleteConfirm = true">
+            Delete Case
+          </BaseButton>
+        </div>
+        <div v-else class="delete-confirm">
+          <p class="delete-warning">
+            Are you sure? This will permanently delete this case and all {{ caseData?.drawers?.length || 0 }} drawer(s) inside.
+          </p>
+          <div class="delete-actions">
+            <BaseButton variant="ghost" @click="showDeleteConfirm = false">
+              Cancel
+            </BaseButton>
+            <BaseButton variant="danger" @click="handleDelete" :loading="deleting">
+              Yes, Delete Case
+            </BaseButton>
+          </div>
+        </div>
+      </div>
     </div>
 
     <template #footer>
@@ -283,6 +408,12 @@ function handleClose() {
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
   margin: 0;
+}
+
+.position-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-sm);
 }
 
 .dimension-grid {
@@ -431,5 +562,43 @@ function handleClose() {
   );
   border-radius: 2px;
   border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Danger Zone */
+.danger-zone {
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid rgba(231, 76, 60, 0.2);
+}
+
+.danger-label {
+  color: var(--color-danger);
+}
+
+.delete-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+}
+
+.delete-confirm {
+  background: rgba(231, 76, 60, 0.05);
+  border: 1px solid rgba(231, 76, 60, 0.2);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-md);
+}
+
+.delete-warning {
+  margin: 0 0 var(--spacing-md) 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.delete-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: flex-end;
 }
 </style>

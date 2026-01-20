@@ -39,6 +39,9 @@ const isBeingDragged = computed(() => {
 
 // Handle drag start
 function handleDragStart(event: DragEvent) {
+  // Stop propagation to prevent any parent draggable from capturing this event
+  event.stopPropagation()
+
   const data: DragData = {
     type: 'drawer',
     id: props.drawer.id,
@@ -82,7 +85,7 @@ function handleDragEnd() {
     <div class="skeu-pull" />
 
     <!-- Drawer label -->
-    <div v-if="displayName" class="skeu-drawer-label">
+    <div v-if="displayName" class="skeu-drawer-label" :title="displayName">
       {{ displayName }}
     </div>
   </div>
@@ -96,8 +99,7 @@ function handleDragEnd() {
 }
 
 .drawer-front.is-dragging {
-  opacity: 0.5;
-  transform: scale(0.95);
+  opacity: 0.4;
 }
 
 .skeu-category-dot {

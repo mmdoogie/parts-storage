@@ -33,3 +33,6 @@ npm-debug.log*
 
 # Vite
 *.local
+
+# mantic
+.mantic

@@ -11,11 +11,15 @@ interface Props {
   row: number
   highlighted?: boolean
   isCovered?: boolean
+  caseColumns?: number
+  caseRows?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
   highlighted: false,
-  isCovered: false
+  isCovered: false,
+  caseColumns: 4,
+  caseRows: 6
 })
 
 const emit = defineEmits<{
@@ -80,6 +84,31 @@ const isInvalidTarget = computed(() => {
   return !isValidTarget(props.caseId, props.column, props.row)
 })
 
+// Get the size info of the dragged drawer for display
+const draggedDrawerSize = computed(() => {
+  if (!dragData.value?.size) return { width: 1, height: 1 }
+  return {
+    width: dragData.value.size.widthUnits,
+    height: dragData.value.size.heightUnits
+  }
+})
+
+// Show the drawer extent indicator when hovering over a valid drop target
+const showDrawerExtent = computed(() => {
+  return isCurrentDragOver.value && isValidDropTarget.value && dragData.value?.size
+})
+
+// Calculate how the drawer would span from this position
+const drawerExtentStyle = computed(() => {
+  if (!showDrawerExtent.value) return {}
+  const width = draggedDrawerSize.value.width
+  const height = draggedDrawerSize.value.height
+  return {
+    '--extent-width': width,
+    '--extent-height': height
+  }
+})
+
 function handleClick() {
   if (props.drawer) {
     emit('click')
@@ -123,9 +152,10 @@ async function handleDropEvent(event: DragEvent) {
       'is-valid-target': isValidDropTarget,
       'is-drag-over': isCurrentDragOver,
       'is-invalid-target': isInvalidTarget,
-      'is-dragging-active': isDragging
+      'is-dragging-active': isDragging,
+      'show-extent': showDrawerExtent
     }"
-    :style="slotStyle"
+    :style="{ ...slotStyle, ...drawerExtentStyle }"
     @click="handleClick"
     @dragover="handleDragOver"
     @dragenter="handleDragEnter"
@@ -139,8 +169,14 @@ async function handleDropEvent(event: DragEvent) {
     />
     <div v-else class="skeu-empty-slot">
       <span v-if="!isDragging">+</span>
-      <span v-else-if="isValidDropTarget" class="drop-indicator">Drop here</span>
+      <span v-else-if="isValidDropTarget" class="drop-indicator">
+        {{ draggedDrawerSize.width > 1 || draggedDrawerSize.height > 1
+          ? `${draggedDrawerSize.width}x${draggedDrawerSize.height}`
+          : 'Drop here' }}
+      </span>
     </div>
+    <!-- Visual indicator showing where the drawer will span -->
+    <div v-if="showDrawerExtent" class="drawer-extent-preview"></div>
   </div>
 </template>
 
@@ -152,7 +188,7 @@ async function handleDropEvent(event: DragEvent) {
   position: relative;
   border: 2px solid transparent;
   border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
 }
 
 /* Valid drop target styling */
@@ -219,5 +255,41 @@ async function handleDropEvent(event: DragEvent) {
 
 .drawer-slot.is-drag-over .drop-indicator {
   color: var(--color-primary);
+}
+
+/* Drawer extent preview - shows where a multi-cell drawer will span */
+.drawer-extent-preview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* Use CSS calc with grid gap to show full extent */
+  width: calc((100% + 3px) * var(--extent-width, 1) - 3px);
+  height: calc((100% + 3px) * var(--extent-height, 1) - 3px);
+  border: 3px dashed var(--color-primary);
+  border-radius: var(--radius-md);
+  background: rgba(52, 152, 219, 0.15);
+  pointer-events: none;
+  z-index: 10;
+  animation: pulse-extent 1s ease-in-out infinite;
+}
+
+@keyframes pulse-extent {
+  0%, 100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* When showing extent, hide the standard drag-over styling on the slot itself */
+.drawer-slot.show-extent.is-drag-over {
+  border-color: transparent;
+  background: transparent;
+}
+
+.drawer-slot.show-extent .skeu-empty-slot {
+  z-index: 11;
+  position: relative;
 }
 </style>

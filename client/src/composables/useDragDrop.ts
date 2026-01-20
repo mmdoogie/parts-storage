@@ -118,7 +118,10 @@ export function useDragDrop() {
     // Set drag image and effect
     if (event?.dataTransfer) {
       event.dataTransfer.effectAllowed = 'move'
-      event.dataTransfer.setData('application/json', JSON.stringify(data))
+      // Set data with multiple MIME types for better compatibility
+      const jsonData = JSON.stringify(data)
+      event.dataTransfer.setData('text/plain', jsonData)
+      event.dataTransfer.setData('application/json', jsonData)
     }
 
     // Calculate valid targets for visual feedback
