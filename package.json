@@ -5,16 +5,20 @@
   "description": "Skeuomorphic parts storage drawer management application",
   "workspaces": [
     "client",
-    "server"
+    "server",
+    "mcp-server"
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "npm run dev -w client",
     "dev:server": "npm run dev -w server",
-    "build": "npm run build -w client && npm run build -w server",
+    "dev:mcp": "npm run dev -w mcp-server",
+    "build": "npm run build -w client && npm run build -w server && npm run build -w mcp-server",
     "build:client": "npm run build -w client",
     "build:server": "npm run build -w server",
+    "build:mcp": "npm run build -w mcp-server",
     "start": "npm run start -w server",
+    "start:mcp": "npm run start -w mcp-server",
     "db:migrate": "npm run db:migrate -w server",
     "db:seed": "npm run db:seed -w server"
   },
