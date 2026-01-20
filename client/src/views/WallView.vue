@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useWallStore, useDrawerStore, useCategoryStore, useSearchStore, useCaseStore } from '@/stores'
 import * as caseService from '@/services/caseService'
 import type { LayoutTemplate, Case } from '@/types'
@@ -71,6 +71,18 @@ const addDrawerLoading = ref(false)
 const isEditingCase = ref(false)
 const editingCaseData = ref<Case | null>(null)
 
+// Refresh wall data when tab regains focus (handles MCP changes)
+let lastFocusRefresh = Date.now()
+const FOCUS_REFRESH_INTERVAL = 5000 // Don't refresh more than once every 5 seconds
+
+function handleWindowFocus() {
+  const now = Date.now()
+  if (now - lastFocusRefresh > FOCUS_REFRESH_INTERVAL && wallStore.currentWall) {
+    lastFocusRefresh = now
+    refreshWall()
+  }
+}
+
 onMounted(async () => {
   await wallStore.fetchWalls()
   if (wallStore.walls.length > 0) {
@@ -79,6 +91,13 @@ onMounted(async () => {
   await drawerStore.fetchDrawerSizes()
   await categoryStore.fetchCategories()
   templates.value = await caseService.getLayoutTemplates()
+
+  // Add focus listener for MCP sync
+  window.addEventListener('focus', handleWindowFocus)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('focus', handleWindowFocus)
 })
 
 const cases = computed(() => wallStore.currentWall?.cases || [])
