@@ -9,7 +9,7 @@ import {
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
-const API_BASE_URL = process.env.STORAGE_API_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = process.env.STORAGE_API_URL || 'http://localhost:3002/api/v1';
 
 interface ApiResponse<T> {
   success: boolean;
