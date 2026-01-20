@@ -16,7 +16,8 @@ async function seed() {
     ['medium', 2, 1],
     ['large', 2, 2],
     ['wide', 4, 1],
-    ['tall', 1, 2]
+    ['wide 3', 3, 1],
+    ['tall 3', 1, 3]
   ]
 
   for (const [name, width, height] of sizes) {
@@ -62,53 +63,125 @@ async function seed() {
     VALUES (?, ?, ?, ?, ?, 1)
   `)
 
-  // Small parts organizer - 8x6 grid of small drawers
-  const smallPartsLayout = []
-  for (let row = 1; row <= 6; row++) {
-    for (let col = 1; col <= 8; col++) {
-      smallPartsLayout.push({ col, row, size: 'small' })
-    }
-  }
-  insertTemplate.run(
-    'Small Parts Organizer',
-    '8 columns x 6 rows of small drawers (48 total)',
-    8,
-    6,
-    JSON.stringify(smallPartsLayout)
-  )
-
-  // Mixed storage - 4 wide on top, 4x4 small below
-  const mixedLayout = [
-    { col: 1, row: 1, size: 'wide' },
-    { col: 1, row: 2, size: 'wide' },
-  ]
-  for (let row = 3; row <= 6; row++) {
-    for (let col = 1; col <= 4; col++) {
-      mixedLayout.push({ col, row, size: 'small' })
-    }
-  }
-  insertTemplate.run(
-    'Mixed Storage',
-    '2 wide drawers on top, 16 small drawers below',
-    4,
-    6,
-    JSON.stringify(mixedLayout)
-  )
-
-  // Component drawer - 4x8 small
-  const componentLayout = []
+  // Akro-Mils 10164 8x8 - 64 small drawers
+  const akroMils8x8Layout = []
   for (let row = 1; row <= 8; row++) {
-    for (let col = 1; col <= 4; col++) {
-      componentLayout.push({ col, row, size: 'small' })
+    for (let col = 1; col <= 8; col++) {
+      akroMils8x8Layout.push({ col, row, size: 'small' })
     }
   }
   insertTemplate.run(
-    'Component Drawer',
-    '4 columns x 8 rows of small drawers (32 total)',
-    4,
+    'Akro-Mils 10164 8x8',
+    '8 columns x 8 rows of small drawers (64 total)',
     8,
-    JSON.stringify(componentLayout)
+    8,
+    JSON.stringify(akroMils8x8Layout)
   )
+
+  // Akro-Mils 10144 32+12 - 32 small on top, 12 medium below
+  const akroMils32x12Layout = []
+  for (let row = 1; row <= 4; row++) {
+    for (let col = 1; col <= 8; col++) {
+      akroMils32x12Layout.push({ col, row, size: 'small' })
+    }
+  }
+  for (let row = 5; row <= 7; row++) {
+    for (let col = 1; col <= 8; col += 2) {
+      akroMils32x12Layout.push({ col, row, size: 'medium' })
+    }
+  }
+  insertTemplate.run(
+    'Akro-Mils 10144 32+12',
+    '32 small drawers on top, 12 medium drawers below',
+    8,
+    7,
+    JSON.stringify(akroMils32x12Layout)
+  )
+
+  // Akro-Mils 10116 4x4 - 16 small drawers
+  const akroMils4x4Layout = []
+  for (let row = 1; row <= 4; row++) {
+    for (let col = 1; col <= 4; col++) {
+      akroMils4x4Layout.push({ col, row, size: 'small' })
+    }
+  }
+  insertTemplate.run(
+    'Akro-Mils 10116 4x4',
+    '4 columns x 4 rows of small drawers (16 total)',
+    4,
+    4,
+    JSON.stringify(akroMils4x4Layout)
+  )
+
+  // Cube 4 Drawer - 2x2 small
+  insertTemplate.run(
+    'Cube 4 Drawer',
+    '2x2 grid of small drawers',
+    2,
+    2,
+    JSON.stringify([
+      { col: 1, row: 1, size: 'small' },
+      { col: 2, row: 1, size: 'small' },
+      { col: 1, row: 2, size: 'small' },
+      { col: 2, row: 2, size: 'small' }
+    ])
+  )
+
+  // Cube 3 Drawer - 1x3 small
+  insertTemplate.run(
+    'Cube 3 Drawer',
+    '1 column x 3 rows of small drawers',
+    1,
+    3,
+    JSON.stringify([
+      { col: 1, row: 1, size: 'small' },
+      { col: 1, row: 2, size: 'small' },
+      { col: 1, row: 3, size: 'small' }
+    ])
+  )
+
+  // Cube 2 Drawer - 1x2 small
+  insertTemplate.run(
+    'Cube 2 Drawer',
+    '1 column x 2 rows of small drawers',
+    1,
+    2,
+    JSON.stringify([
+      { col: 1, row: 1, size: 'small' },
+      { col: 1, row: 2, size: 'small' }
+    ])
+  )
+
+  // Cube 6 Slot - 3 wide on top, 3 tall below
+  insertTemplate.run(
+    'Cube 6 Slot',
+    '3 wide drawers on top, 3 tall drawers below',
+    3,
+    6,
+    JSON.stringify([
+      { col: 1, row: 1, size: 'wide 3' },
+      { col: 1, row: 2, size: 'wide 3' },
+      { col: 1, row: 3, size: 'wide 3' },
+      { col: 1, row: 4, size: 'tall 3' },
+      { col: 2, row: 4, size: 'tall 3' },
+      { col: 3, row: 4, size: 'tall 3' }
+    ])
+  )
+
+  // Cube 2+2 - 2 medium on top, 2 tall below
+  insertTemplate.run(
+    'Cube 2+2',
+    '2 medium drawers on top, 2 tall drawers below',
+    2,
+    5,
+    JSON.stringify([
+      { col: 1, row: 1, size: 'medium' },
+      { col: 1, row: 2, size: 'medium' },
+      { col: 1, row: 3, size: 'tall 3' },
+      { col: 2, row: 3, size: 'tall 3' }
+    ])
+  )
+
   console.log('  - Layout templates seeded')
 
   console.log('Seeding completed successfully!')
