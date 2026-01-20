@@ -140,6 +140,7 @@ function handleDragEnd() {
       'is-dragging': isBeingDragged
     }"
     :style="drawerStyle"
+    :data-drawer-id="drawer.id"
     draggable="true"
     @dragstart="handleDragStart"
     @dragend="handleDragEnd"

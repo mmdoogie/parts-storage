@@ -139,6 +139,13 @@ function handleDrawerClick(drawerId: number) {
 
 function handleHighlightDrawer(drawerId: number) {
   searchStore.highlightDrawer(drawerId)
+  // Scroll to the highlighted drawer
+  nextTick(() => {
+    const drawerElement = document.querySelector(`[data-drawer-id="${drawerId}"]`)
+    if (drawerElement) {
+      drawerElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  })
 }
 
 function closeDrawer() {
