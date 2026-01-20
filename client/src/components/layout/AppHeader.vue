@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { useSearchStore, useSettingsStore } from '@/stores'
+import { useSearchStore, useSettingsStore, useWallStore } from '@/stores'
 import SearchBar from '@/components/search/SearchBar.vue'
+import BaseButton from '@/components/base/BaseButton.vue'
 
 const searchStore = useSearchStore()
 const settingsStore = useSettingsStore()
+const wallStore = useWallStore()
 </script>
 
 <template>
@@ -11,17 +13,25 @@ const settingsStore = useSettingsStore()
     <div class="header-content">
       <h1 class="header-title">Parts Storage</h1>
       <SearchBar v-model="searchStore.query" class="header-search" />
-      <button
-        class="settings-button"
-        @click="settingsStore.openSettingsModal()"
-        title="Settings"
-        aria-label="Open settings"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-        </svg>
-      </button>
+      <div class="header-actions">
+        <BaseButton variant="primary" size="sm" @click="wallStore.openAddCaseModal()">
+          <svg class="button-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          Add Case
+        </BaseButton>
+        <button
+          class="settings-button"
+          @click="settingsStore.openSettingsModal()"
+          title="Settings"
+          aria-label="Open settings"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+          </svg>
+        </button>
+      </div>
     </div>
   </header>
 </template>
@@ -58,6 +68,18 @@ const settingsStore = useSettingsStore()
   flex: 1;
   min-width: 200px;
   max-width: 400px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.button-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: var(--spacing-xs);
 }
 
 .settings-button {

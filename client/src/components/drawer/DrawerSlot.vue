@@ -13,13 +13,15 @@ interface Props {
   isCovered?: boolean
   caseColumns?: number
   caseRows?: number
+  caseColor?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   highlighted: false,
   isCovered: false,
   caseColumns: 4,
-  caseRows: 6
+  caseRows: 6,
+  caseColor: '#8B7355'
 })
 
 const emit = defineEmits<{
@@ -166,6 +168,7 @@ async function handleDropEvent(event: DragEvent) {
       v-if="drawer"
       :drawer="drawer"
       :highlighted="highlighted"
+      :case-color="caseColor"
     />
     <div v-else class="skeu-empty-slot">
       <span v-if="!isDragging">+</span>

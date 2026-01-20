@@ -223,12 +223,12 @@ function handleWallDrop(event: DragEvent) {
 <style scoped>
 .storage-wall {
   display: grid;
-  grid-template-columns: repeat(var(--wall-columns, 12), minmax(80px, 1fr));
-  grid-auto-rows: minmax(80px, auto);
+  grid-template-columns: repeat(var(--wall-columns, 12), 80px);
+  grid-template-rows: repeat(var(--wall-rows, 3), 80px);
   gap: var(--wall-gap, 16px);
   padding: var(--wall-padding, 24px);
   min-height: 400px;
-  overflow-x: auto;
+  overflow: auto;
   position: relative;
 }
 
@@ -250,13 +250,15 @@ function handleWallDrop(event: DragEvent) {
 
 @media (max-width: 767px) {
   .storage-wall {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(var(--wall-columns, 12), 60px);
+    grid-template-rows: repeat(var(--wall-rows, 3), 60px);
   }
 }
 
 @media (min-width: 768px) and (max-width: 1023px) {
   .storage-wall {
-    grid-template-columns: repeat(var(--wall-columns, 12), minmax(60px, 1fr));
+    grid-template-columns: repeat(var(--wall-columns, 12), 70px);
+    grid-template-rows: repeat(var(--wall-rows, 3), 70px);
   }
 }
 

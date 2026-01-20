@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SearchResult } from '@/types'
+import { useSearchStore } from '@/stores'
 
 interface Props {
   results: SearchResult[]
@@ -10,7 +11,10 @@ defineProps<Props>()
 
 const emit = defineEmits<{
   select: [drawerId: number]
+  highlight: [drawerId: number]
 }>()
+
+const searchStore = useSearchStore()
 
 function getResultIcon(type: string) {
   switch (type) {
@@ -19,6 +23,12 @@ function getResultIcon(type: string) {
     case 'case': return 'C'
     default: return '?'
   }
+}
+
+function handleHighlight(event: Event, drawerId: number) {
+  event.stopPropagation()
+  searchStore.clearSearch()
+  emit('highlight', drawerId)
 }
 </script>
 
@@ -37,7 +47,7 @@ function getResultIcon(type: string) {
     </div>
 
     <div v-else-if="results.length" class="results-list">
-      <button
+      <div
         v-for="result in results"
         :key="`${result.type}-${result.id}`"
         class="result-item"
@@ -55,7 +65,18 @@ function getResultIcon(type: string) {
             Matched in {{ result.matchedField }}: {{ result.matchedText }}
           </span>
         </div>
-      </button>
+        <button
+          class="highlight-button"
+          @click="handleHighlight($event, result.path.drawerId)"
+          title="Show on wall"
+          aria-label="Highlight drawer on wall"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" />
+            <path d="M21 21l-4.35-4.35" />
+          </svg>
+        </button>
+      </div>
     </div>
 
     <div v-else class="no-results">
@@ -179,6 +200,38 @@ function getResultIcon(type: string) {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   font-style: italic;
+}
+
+.highlight-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin-left: auto;
+  background: rgba(243, 156, 18, 0.1);
+  border: 1px solid rgba(243, 156, 18, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--color-warning);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.highlight-button:hover {
+  background: rgba(243, 156, 18, 0.2);
+  border-color: var(--color-warning);
+  transform: scale(1.05);
+}
+
+.highlight-button:active {
+  transform: scale(0.95);
+}
+
+.highlight-button svg {
+  width: 16px;
+  height: 16px;
 }
 
 .no-results {

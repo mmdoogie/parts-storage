@@ -129,6 +129,7 @@ function isHighlighted(drawerId: number): boolean {
             :row="row"
             :highlighted="getDrawerAt(col, row) ? isHighlighted(getDrawerAt(col, row)!.id) : false"
             :is-covered="isSlotCovered(col, row)"
+            :case-color="caseData.color"
             @click="getDrawerAt(col, row) && emit('drawer-click', getDrawerAt(col, row)!.id)"
             @add-drawer="(column, row) => emit('add-drawer', caseData.id, column, row)"
           />

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { useWallStore, useDrawerStore, useCategoryStore, useSearchStore, useCaseStore } from '@/stores'
 import * as caseService from '@/services/caseService'
 import type { LayoutTemplate, Case } from '@/types'
@@ -17,8 +17,36 @@ const categoryStore = useCategoryStore()
 const searchStore = useSearchStore()
 const caseStore = useCaseStore()
 
+// Scroll position preservation
+const wallViewRef = ref<HTMLElement | null>(null)
+let savedScrollPosition = { x: 0, y: 0 }
+
+function saveScrollPosition() {
+  if (wallViewRef.value) {
+    savedScrollPosition = {
+      x: wallViewRef.value.scrollLeft,
+      y: wallViewRef.value.scrollTop
+    }
+  }
+  // Also save window scroll position
+  savedScrollPosition.y = window.scrollY
+  savedScrollPosition.x = window.scrollX
+}
+
+async function restoreScrollPosition() {
+  await nextTick()
+  window.scrollTo(savedScrollPosition.x, savedScrollPosition.y)
+}
+
+// Wrap wall fetches to preserve scroll position
+async function refreshWall() {
+  if (!wallStore.currentWall) return
+  saveScrollPosition()
+  await wallStore.fetchWall(wallStore.currentWall.id)
+  await restoreScrollPosition()
+}
+
 const openDrawerId = ref<number | null>(null)
-const isAddingCase = ref(false)
 const newCaseName = ref('New Case')
 const selectedTemplate = ref<number | null>(null)
 const templates = ref<LayoutTemplate[]>([])
@@ -95,26 +123,29 @@ function findNextAvailablePosition(existingCases: Case[], width: number, height:
   return { col: 1, row: maxRow + 1 }
 }
 
-// Set initial position when opening add case modal
-function openAddCaseModal() {
-  const pos = findNextAvailablePosition(cases.value, newCaseColumnSpan.value, newCaseRowSpan.value, gridColumns.value)
-  newCaseColumnStart.value = pos.col
-  newCaseRowStart.value = pos.row
-  isAddingCase.value = true
-}
+// Watch for store modal open and initialize position
+watch(() => wallStore.showAddCaseModal, (isOpen) => {
+  if (isOpen) {
+    const pos = findNextAvailablePosition(cases.value, newCaseColumnSpan.value, newCaseRowSpan.value, gridColumns.value)
+    newCaseColumnStart.value = pos.col
+    newCaseRowStart.value = pos.row
+  }
+})
 
 function handleDrawerClick(drawerId: number) {
   openDrawerId.value = drawerId
   drawerStore.setOpenDrawer(drawerId)
 }
 
+function handleHighlightDrawer(drawerId: number) {
+  searchStore.highlightDrawer(drawerId)
+}
+
 function closeDrawer() {
   openDrawerId.value = null
   drawerStore.setOpenDrawer(null)
   // Refresh wall to get updated drawer info
-  if (wallStore.currentWall) {
-    wallStore.fetchWall(wallStore.currentWall.id)
-  }
+  refreshWall()
 }
 
 async function addCase() {
@@ -139,9 +170,9 @@ async function addCase() {
     }
 
     // Refresh wall
-    await wallStore.fetchWall(wallStore.currentWall.id)
+    await refreshWall()
 
-    isAddingCase.value = false
+    wallStore.closeAddCaseModal()
     newCaseName.value = 'New Case'
     selectedTemplate.value = null
     // Reset position for next case
@@ -213,9 +244,7 @@ async function createDrawer() {
     })
 
     // Refresh wall to get updated case with new drawer
-    if (wallStore.currentWall) {
-      await wallStore.fetchWall(wallStore.currentWall.id)
-    }
+    await refreshWall()
 
     closeAddDrawerModal()
 
@@ -334,18 +363,14 @@ async function handleCaseUpdated(updatedCase: Case) {
   // Update the case in the wall store
   wallStore.updateCaseInWall(updatedCase)
   // Refresh the wall to get the complete updated data
-  if (wallStore.currentWall) {
-    await wallStore.fetchWall(wallStore.currentWall.id)
-  }
+  await refreshWall()
 }
 
 async function handleCaseDeleted(caseId: number) {
   // Remove the case from the wall store
   wallStore.removeCaseFromWall(caseId)
   // Refresh the wall to get the updated data
-  if (wallStore.currentWall) {
-    await wallStore.fetchWall(wallStore.currentWall.id)
-  }
+  await refreshWall()
 }
 
 async function handleCaseMove(caseId: number, newColumn: number, newRow: number) {
@@ -355,9 +380,7 @@ async function handleCaseMove(caseId: number, newColumn: number, newRow: number)
       gridRowStart: newRow
     })
     // Refresh the wall to get the updated positions
-    if (wallStore.currentWall) {
-      await wallStore.fetchWall(wallStore.currentWall.id)
-    }
+    await refreshWall()
   } catch (e) {
     console.error('Failed to move case:', e)
   }
@@ -365,26 +388,18 @@ async function handleCaseMove(caseId: number, newColumn: number, newRow: number)
 </script>
 
 <template>
-  <div class="wall-view">
+  <div ref="wallViewRef" class="wall-view">
     <!-- Search results overlay -->
     <SearchResults
       v-if="searchStore.isActive"
       :results="searchStore.results"
       :is-searching="searchStore.isSearching"
       @select="handleDrawerClick"
+      @highlight="handleHighlightDrawer"
     />
 
     <!-- Main wall content -->
     <template v-else>
-      <div class="wall-toolbar">
-        <h2 v-if="wallStore.currentWall" class="wall-name">
-          {{ wallStore.currentWall.name }}
-        </h2>
-        <BaseButton @click="openAddCaseModal">
-          Add Case
-        </BaseButton>
-      </div>
-
       <div v-if="wallStore.loading" class="loading-state">
         Loading storage wall...
       </div>
@@ -416,9 +431,9 @@ async function handleCaseMove(caseId: number, newColumn: number, newRow: number)
 
     <!-- Add case modal -->
     <BaseModal
-      :open="isAddingCase"
+      :open="wallStore.showAddCaseModal"
       title="Add Storage Case"
-      @close="isAddingCase = false"
+      @close="wallStore.closeAddCaseModal()"
     >
       <div class="add-case-form">
         <BaseInput
@@ -498,7 +513,7 @@ async function handleCaseMove(caseId: number, newColumn: number, newRow: number)
       </div>
 
       <template #footer>
-        <BaseButton variant="ghost" @click="isAddingCase = false">
+        <BaseButton variant="ghost" @click="wallStore.closeAddCaseModal()">
           Cancel
         </BaseButton>
         <BaseButton @click="addCase" :loading="loading">
@@ -580,21 +595,6 @@ async function handleCaseMove(caseId: number, newColumn: number, newRow: number)
   flex: 1;
   display: flex;
   flex-direction: column;
-}
-
-.wall-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--spacing-md) var(--wall-padding);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-  background: white;
-}
-
-.wall-name {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  margin: 0;
 }
 
 .loading-state,

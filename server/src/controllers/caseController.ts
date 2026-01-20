@@ -127,7 +127,17 @@ export function updateCase(req: Request, res: Response, next: NextFunction) {
   try {
     const db = getDb()
     const { id } = req.params
-    const { name, sectionId, internalColumns, internalRows, color } = req.body
+    const {
+      name,
+      sectionId,
+      internalColumns,
+      internalRows,
+      color,
+      gridColumnStart,
+      gridColumnSpan,
+      gridRowStart,
+      gridRowSpan
+    } = req.body
 
     const existing = db.prepare('SELECT * FROM cases WHERE id = ?').get(id)
     if (!existing) {
@@ -141,9 +151,24 @@ export function updateCase(req: Request, res: Response, next: NextFunction) {
           internal_columns = COALESCE(?, internal_columns),
           internal_rows = COALESCE(?, internal_rows),
           color = COALESCE(?, color),
+          grid_column_start = COALESCE(?, grid_column_start),
+          grid_column_span = COALESCE(?, grid_column_span),
+          grid_row_start = COALESCE(?, grid_row_start),
+          grid_row_span = COALESCE(?, grid_row_span),
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(name, sectionId, internalColumns, internalRows, color, id)
+    `).run(
+      name,
+      sectionId,
+      internalColumns,
+      internalRows,
+      color,
+      gridColumnStart,
+      gridColumnSpan,
+      gridRowStart,
+      gridRowSpan,
+      id
+    )
 
     const caseRow = db.prepare('SELECT * FROM cases WHERE id = ?').get(id)
 

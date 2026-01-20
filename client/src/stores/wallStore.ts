@@ -8,6 +8,7 @@ export const useWallStore = defineStore('wall', () => {
   const currentWall = ref<Wall | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const showAddCaseModal = ref(false)
 
   async function fetchWalls() {
     loading.value = true
@@ -104,12 +105,21 @@ export const useWallStore = defineStore('wall', () => {
 
   const hasWalls = computed(() => walls.value.length > 0)
 
+  function openAddCaseModal() {
+    showAddCaseModal.value = true
+  }
+
+  function closeAddCaseModal() {
+    showAddCaseModal.value = false
+  }
+
   return {
     walls,
     currentWall,
     loading,
     error,
     hasWalls,
+    showAddCaseModal,
     fetchWalls,
     fetchWall,
     createWall,
@@ -117,6 +127,8 @@ export const useWallStore = defineStore('wall', () => {
     deleteWall,
     updateCaseInWall,
     addCaseToWall,
-    removeCaseFromWall
+    removeCaseFromWall,
+    openAddCaseModal,
+    closeAddCaseModal
   }
 })

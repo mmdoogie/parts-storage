@@ -6,10 +6,12 @@ import { useDragDrop } from '@/composables/useDragDrop'
 interface Props {
   drawer: Drawer
   highlighted?: boolean
+  caseColor?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  highlighted: false
+  highlighted: false,
+  caseColor: '#8B7355'
 })
 
 const { startDrag, endDrag, isDragging, dragData } = useDragDrop()
@@ -23,8 +25,62 @@ const displayName = computed(() => {
   return ''
 })
 
+// Convert hex color to HSL for manipulation
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+  if (!result) return { h: 0, s: 0, l: 50 }
+
+  const r = parseInt(result[1], 16) / 255
+  const g = parseInt(result[2], 16) / 255
+  const b = parseInt(result[3], 16) / 255
+
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  let h = 0
+  let s = 0
+  const l = (max + min) / 2
+
+  if (max !== min) {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break
+      case g: h = ((b - r) / d + 2) / 6; break
+      case b: h = ((r - g) / d + 4) / 6; break
+    }
+  }
+
+  return { h: h * 360, s: s * 100, l: l * 100 }
+}
+
+// Create a lightened version of the case color for drawer fronts
+const lightenedCaseColor = computed(() => {
+  const hsl = hexToHsl(props.caseColor)
+  // Increase lightness by 30-40% and reduce saturation slightly for a softer look
+  const newL = Math.min(90, hsl.l + 35)
+  const newS = Math.max(20, hsl.s * 0.7)
+  return `hsl(${hsl.h}, ${newS}%, ${newL}%)`
+})
+
+const drawerHighlight = computed(() => {
+  const hsl = hexToHsl(props.caseColor)
+  const newL = Math.min(95, hsl.l + 45)
+  const newS = Math.max(15, hsl.s * 0.5)
+  return `hsl(${hsl.h}, ${newS}%, ${newL}%)`
+})
+
+const drawerShadow = computed(() => {
+  const hsl = hexToHsl(props.caseColor)
+  const newL = Math.min(80, hsl.l + 20)
+  const newS = Math.max(25, hsl.s * 0.8)
+  return `hsl(${hsl.h}, ${newS}%, ${newL}%)`
+})
+
 const drawerStyle = computed(() => ({
-  '--drawer-color': props.drawer.color
+  '--drawer-color': props.drawer.color,
+  '--drawer-base': lightenedCaseColor.value,
+  '--drawer-highlight': drawerHighlight.value,
+  '--drawer-shadow': drawerShadow.value
 }))
 
 // Aggregate categories from all parts in the drawer

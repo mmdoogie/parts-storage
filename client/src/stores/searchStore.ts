@@ -9,6 +9,7 @@ export const useSearchStore = defineStore('search', () => {
   const results = ref<SearchResult[]>([])
   const isSearching = ref(false)
   const error = ref<string | null>(null)
+  const manualHighlightDrawerId = ref<number | null>(null)
 
   const debouncedSearch = useDebounceFn(async (q: string) => {
     if (!q.trim() || q.trim().length < 2) {
@@ -36,9 +37,27 @@ export const useSearchStore = defineStore('search', () => {
     results.value = []
   }
 
-  const highlightedDrawerIds = computed(() =>
-    new Set(results.value.map(r => r.path.drawerId))
-  )
+  function highlightDrawer(drawerId: number) {
+    manualHighlightDrawerId.value = drawerId
+    // Auto-clear highlight after 5 seconds
+    setTimeout(() => {
+      if (manualHighlightDrawerId.value === drawerId) {
+        manualHighlightDrawerId.value = null
+      }
+    }, 5000)
+  }
+
+  function clearHighlight() {
+    manualHighlightDrawerId.value = null
+  }
+
+  const highlightedDrawerIds = computed(() => {
+    const ids = new Set(results.value.map(r => r.path.drawerId))
+    if (manualHighlightDrawerId.value !== null) {
+      ids.add(manualHighlightDrawerId.value)
+    }
+    return ids
+  })
 
   const hasResults = computed(() => results.value.length > 0)
 
@@ -50,8 +69,11 @@ export const useSearchStore = defineStore('search', () => {
     isSearching,
     error,
     highlightedDrawerIds,
+    manualHighlightDrawerId,
     hasResults,
     isActive,
-    clearSearch
+    clearSearch,
+    highlightDrawer,
+    clearHighlight
   }
 })
