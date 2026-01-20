@@ -132,6 +132,18 @@ watch(() => wallStore.showAddCaseModal, (isOpen) => {
   }
 })
 
+// Update case name when a template is selected
+watch(selectedTemplate, (templateId) => {
+  if (templateId) {
+    const template = templates.value.find(t => t.id === templateId)
+    if (template) {
+      newCaseName.value = template.name
+    }
+  } else {
+    newCaseName.value = 'New Case'
+  }
+})
+
 function handleDrawerClick(drawerId: number) {
   openDrawerId.value = drawerId
   drawerStore.setOpenDrawer(drawerId)
