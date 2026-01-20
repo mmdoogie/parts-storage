@@ -31,6 +31,10 @@ const showDeleteConfirm = ref(false)
 const deleteLoading = ref(false)
 const showCategoryPicker = ref(false)
 
+// Drawer name editing state
+const editingDrawerName = ref('')
+const isSavingName = ref(false)
+
 const drawer = computed(() => {
   if (!props.drawerId) return null
   return drawerStore.drawers.get(props.drawerId) || null
@@ -41,12 +45,62 @@ const title = computed(() => {
   return drawer.value.name || `Drawer ${drawer.value.id}`
 })
 
+// Check if the name has been modified
+const isNameModified = computed(() => {
+  if (!drawer.value) return false
+  return editingDrawerName.value !== (drawer.value.name || '')
+})
+
 watch(() => props.open, async (open) => {
   if (open && props.drawerId) {
     await drawerStore.fetchDrawer(props.drawerId)
     await categoryStore.fetchCategories()
   }
 })
+
+// Initialize editingDrawerName when drawer loads
+watch(drawer, (newDrawer) => {
+  if (newDrawer) {
+    editingDrawerName.value = newDrawer.name || ''
+  }
+}, { immediate: true })
+
+async function saveDrawerName() {
+  if (!drawer.value || !isNameModified.value) return
+
+  isSavingName.value = true
+  try {
+    await drawerStore.updateDrawer(drawer.value.id, {
+      name: editingDrawerName.value.trim() || null
+    })
+  } catch (e) {
+    console.error('Failed to save drawer name:', e)
+    // Reset to original name on error
+    editingDrawerName.value = drawer.value.name || ''
+  } finally {
+    isSavingName.value = false
+  }
+}
+
+function discardDrawerNameChanges() {
+  if (drawer.value) {
+    editingDrawerName.value = drawer.value.name || ''
+  }
+}
+
+async function clearDrawerName() {
+  if (!drawer.value) return
+
+  isSavingName.value = true
+  try {
+    await drawerStore.updateDrawer(drawer.value.id, { name: null })
+    editingDrawerName.value = ''
+  } catch (e) {
+    console.error('Failed to clear drawer name:', e)
+  } finally {
+    isSavingName.value = false
+  }
+}
 
 async function addPart() {
   if (!newPartName.value.trim() || !props.drawerId) return
@@ -166,21 +220,51 @@ async function deleteDrawer() {
       <div v-if="drawer" class="drawer-name-section">
         <div class="drawer-name-row">
           <BaseInput
-            :model-value="drawer.name || ''"
+            v-model="editingDrawerName"
             label="Drawer Name"
             placeholder="Optional drawer name..."
-            @update:model-value="val => drawerStore.updateDrawer(drawer!.id, { name: val || null })"
+            @keyup.enter="saveDrawerName"
+            @keyup.escape="discardDrawerNameChanges"
           />
-          <BaseButton
-            v-if="drawer.name"
-            size="sm"
-            variant="ghost"
-            class="clear-name-btn"
-            title="Clear drawer name"
-            @click="drawerStore.updateDrawer(drawer!.id, { name: null })"
-          >
-            Clear
-          </BaseButton>
+          <div class="name-actions">
+            <button
+              v-if="isNameModified"
+              class="icon-btn save"
+              title="Save name"
+              :disabled="isSavingName"
+              @click="saveDrawerName"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </button>
+            <button
+              v-if="isNameModified"
+              class="icon-btn discard"
+              title="Discard changes"
+              :disabled="isSavingName"
+              @click="discardDrawerNameChanges"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+            <button
+              v-if="drawer.name && !isNameModified"
+              class="icon-btn reset"
+              title="Clear drawer name"
+              :disabled="isSavingName"
+              @click="clearDrawerName"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 6h18" />
+                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <line x1="10" y1="11" x2="10" y2="17" />
+                <line x1="14" y1="11" x2="14" y2="17" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -333,13 +417,65 @@ async function deleteDrawer() {
   gap: var(--spacing-sm);
 }
 
-.drawer-name-row .input-group {
+.drawer-name-row :deep(.input-group) {
   flex: 1;
 }
 
-.clear-name-btn {
+.name-actions {
+  display: flex;
+  gap: var(--spacing-xs);
   flex-shrink: 0;
   margin-bottom: 2px;
+}
+
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  color: var(--color-text-muted);
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.icon-btn.save {
+  color: var(--color-success, #27ae60);
+}
+
+.icon-btn.save:hover:not(:disabled) {
+  background: rgba(39, 174, 96, 0.1);
+}
+
+.icon-btn.discard {
+  color: var(--color-danger);
+}
+
+.icon-btn.discard:hover:not(:disabled) {
+  background: rgba(231, 76, 60, 0.1);
+}
+
+.icon-btn.reset {
+  color: var(--color-text-muted);
+}
+
+.icon-btn.reset:hover:not(:disabled) {
+  color: var(--color-danger);
+  background: rgba(231, 76, 60, 0.1);
 }
 
 .parts-section {
