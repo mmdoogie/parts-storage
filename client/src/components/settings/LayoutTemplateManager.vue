@@ -20,15 +20,55 @@ const formData = ref({
 const formError = ref<string | null>(null)
 const deleteError = ref<string | null>(null)
 
+// Selected drawer size for the palette
+const selectedSizeIndex = ref(0)
+
+// Cell size for the editor
+const CELL_SIZE = 32
+
 // Computed for grid rendering
 const gridStyle = computed(() => ({
   display: 'grid',
-  gridTemplateColumns: `repeat(${formData.value.columns}, 1fr)`,
-  gridTemplateRows: `repeat(${formData.value.rows}, 1fr)`,
+  gridTemplateColumns: `repeat(${formData.value.columns}, ${CELL_SIZE}px)`,
+  gridTemplateRows: `repeat(${formData.value.rows}, ${CELL_SIZE}px)`,
   gap: '2px',
-  width: `${formData.value.columns * 32}px`,
-  height: `${formData.value.rows * 32}px`
+  width: `${formData.value.columns * CELL_SIZE + (formData.value.columns - 1) * 2}px`,
+  height: `${formData.value.rows * CELL_SIZE + (formData.value.rows - 1) * 2}px`
 }))
+
+// Currently selected drawer size
+const selectedSize = computed(() => {
+  return settingsStore.drawerSizes[selectedSizeIndex.value] || null
+})
+
+function selectSize(index: number) {
+  selectedSizeIndex.value = index
+}
+
+// Check if a drawer size can fit at the given position
+function canSizeFitAt(col: number, row: number, sizeName: string): boolean {
+  const size = settingsStore.getSizeByName(sizeName)
+  if (!size) return false
+
+  // Check bounds
+  if (col + size.widthUnits - 1 > formData.value.columns ||
+      row + size.heightUnits - 1 > formData.value.rows) {
+    return false
+  }
+
+  // Check for overlap with existing drawers
+  for (const other of formData.value.layoutData) {
+    const otherSize = settingsStore.getSizeByName(other.size)
+    if (!otherSize) continue
+
+    const xOverlap = col < other.col + otherSize.widthUnits && col + size.widthUnits > other.col
+    const yOverlap = row < other.row + otherSize.heightUnits && row + size.heightUnits > other.row
+
+    if (xOverlap && yOverlap) return false
+  }
+
+  return true
+}
 
 function resetForm() {
   formData.value = {
@@ -41,6 +81,7 @@ function resetForm() {
   formError.value = null
   isAdding.value = false
   editingId.value = null
+  selectedSizeIndex.value = 0
 }
 
 function startAdd() {
@@ -92,29 +133,28 @@ function getDrawerAtOrigin(col: number, row: number): DrawerPlacement | null {
   return formData.value.layoutData.find(p => p.col === col && p.row === row) || null
 }
 
-// Add a drawer at position
+// Add a drawer at position using the selected size
 function addDrawerAtPosition(col: number, row: number) {
   // Check if position is already occupied
   if (getCellDrawer(col, row)) return
 
-  // Use the first available size
-  const defaultSize = settingsStore.drawerSizes[0]
-  if (!defaultSize) {
+  // Use the selected size from the palette
+  const sizeToUse = selectedSize.value
+  if (!sizeToUse) {
     formError.value = 'No drawer sizes available. Please create drawer sizes first.'
     return
   }
 
   // Check if drawer fits
-  if (col + defaultSize.widthUnits - 1 > formData.value.columns ||
-      row + defaultSize.heightUnits - 1 > formData.value.rows) {
-    formError.value = 'Drawer does not fit at this position'
+  if (!canSizeFitAt(col, row, sizeToUse.name)) {
+    formError.value = `Selected size "${sizeToUse.name}" does not fit at this position`
     return
   }
 
   formData.value.layoutData.push({
     col,
     row,
-    size: defaultSize.name
+    size: sizeToUse.name
   })
   formError.value = null
 }
@@ -289,29 +329,62 @@ function getDrawerStyle(placement: DrawerPlacement) {
         </div>
 
         <div class="form-section">
-          <label class="input-label">Layout Preview</label>
+          <label class="input-label">Drawer Size Palette</label>
           <p class="help-text">
-            Click empty cells to add drawers. Click drawers to cycle sizes. Right-click to remove.
+            Select a size, then click empty cells to place drawers. Click existing drawers to cycle sizes. Right-click to remove.
           </p>
-          <div class="grid-editor" :style="gridStyle">
-            <template v-for="row in formData.rows" :key="row">
-              <template v-for="col in formData.columns" :key="`${col}-${row}`">
+          <div class="size-palette">
+            <button
+              v-for="(size, index) in settingsStore.drawerSizes"
+              :key="size.id"
+              class="palette-size"
+              :class="{ selected: selectedSizeIndex === index }"
+              @click="selectSize(index)"
+            >
+              <span class="size-name">{{ size.name }}</span>
+              <span class="size-dims">{{ size.widthUnits }}x{{ size.heightUnits }}</span>
+            </button>
+          </div>
+
+          <label class="input-label">Layout Editor</label>
+          <div class="grid-editor-wrapper">
+            <div class="grid-editor" :style="gridStyle">
+              <!-- Background grid cells for all positions -->
+              <template v-for="row in formData.rows" :key="`bg-${row}`">
                 <div
-                  v-if="isDrawerOrigin(col, row)"
-                  class="grid-drawer"
-                  :style="getDrawerStyle(getDrawerAtOrigin(col, row)!)"
-                  @click="cycleDrawerSize(col, row)"
-                  @contextmenu.prevent="removeDrawerAtPosition(col, row)"
-                >
-                  {{ getDrawerAtOrigin(col, row)?.size }}
-                </div>
+                  v-for="col in formData.columns"
+                  :key="`bg-${col}-${row}`"
+                  class="grid-cell-bg"
+                  :style="{ gridColumn: col, gridRow: row }"
+                />
+              </template>
+              <!-- Drawers placed on top -->
+              <div
+                v-for="(placement, idx) in formData.layoutData"
+                :key="`drawer-${idx}`"
+                class="grid-drawer"
+                :style="getDrawerStyle(placement)"
+                @click="cycleDrawerSize(placement.col, placement.row)"
+                @contextmenu.prevent="removeDrawerAtPosition(placement.col, placement.row)"
+              >
+                {{ placement.size }}
+              </div>
+              <!-- Clickable overlay for empty cells -->
+              <template v-for="row in formData.rows" :key="`click-${row}`">
                 <div
-                  v-else-if="!getCellDrawer(col, row)"
-                  class="grid-cell"
+                  v-for="col in formData.columns"
+                  :key="`click-${col}-${row}`"
+                  v-show="!getCellDrawer(col, row)"
+                  class="grid-cell-click"
+                  :class="{
+                    'can-fit': selectedSize && canSizeFitAt(col, row, selectedSize.name),
+                    'cannot-fit': selectedSize && !canSizeFitAt(col, row, selectedSize.name)
+                  }"
+                  :style="{ gridColumn: col, gridRow: row }"
                   @click="addDrawerAtPosition(col, row)"
                 />
               </template>
-            </template>
+            </div>
           </div>
           <div class="drawer-count">
             {{ formData.layoutData.length }} drawer(s)
@@ -562,26 +635,88 @@ function getDrawerStyle(placement: DrawerPlacement) {
   box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
 }
 
-.grid-editor {
-  background: rgba(0, 0, 0, 0.1);
+.size-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-md);
+}
+
+.palette-size {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: white;
+  border: 2px solid rgba(0, 0, 0, 0.15);
   border-radius: var(--radius-sm);
-  padding: 4px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  min-width: 50px;
+}
+
+.palette-size:hover {
+  border-color: var(--color-primary);
+}
+
+.palette-size.selected {
+  border-color: var(--color-primary);
+  background: rgba(52, 152, 219, 0.1);
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.palette-size .size-name {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.palette-size .size-dims {
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+.grid-editor-wrapper {
   max-width: fit-content;
 }
 
-.grid-cell {
-  background: rgba(255, 255, 255, 0.5);
-  border: 1px dashed rgba(0, 0, 0, 0.2);
-  border-radius: 2px;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  min-width: 28px;
-  min-height: 28px;
+.grid-editor {
+  background: var(--wood-medium, #8B7355);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  position: relative;
 }
 
-.grid-cell:hover {
-  background: rgba(52, 152, 219, 0.2);
+.grid-cell-bg {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
+}
+
+.grid-cell-click {
+  cursor: pointer;
+  border: 1px dashed transparent;
+  border-radius: 2px;
+  transition: all var(--transition-fast);
+  z-index: 1;
+}
+
+.grid-cell-click:hover {
+  background: rgba(52, 152, 219, 0.3);
   border-color: var(--color-primary);
+}
+
+.grid-cell-click.can-fit:hover {
+  background: rgba(39, 174, 96, 0.3);
+  border-color: var(--color-success, #27ae60);
+}
+
+.grid-cell-click.cannot-fit {
+  cursor: not-allowed;
+}
+
+.grid-cell-click.cannot-fit:hover {
+  background: rgba(231, 76, 60, 0.2);
+  border-color: var(--color-danger);
 }
 
 .grid-drawer {
@@ -596,6 +731,7 @@ function getDrawerStyle(placement: DrawerPlacement) {
   font-weight: 500;
   color: rgba(0, 0, 0, 0.6);
   transition: all var(--transition-fast);
+  z-index: 2;
 }
 
 .grid-drawer:hover {
