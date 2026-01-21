@@ -223,6 +223,13 @@ watch(selectedTemplate, (templateId) => {
   }
 })
 
+// Scroll to top when search becomes active
+watch(() => searchStore.isActive, (isActive) => {
+  if (isActive) {
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }
+})
+
 function handleDrawerClick(drawerId: number) {
   openDrawerId.value = drawerId
   drawerStore.setOpenDrawer(drawerId)
