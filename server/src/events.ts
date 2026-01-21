@@ -50,6 +50,10 @@ class StorageEventEmitter extends EventEmitter {
 
     for (const client of this.clients) {
       client.write(data)
+      // Flush to ensure data is sent immediately through any proxies
+      if (typeof (client as any).flush === 'function') {
+        (client as any).flush()
+      }
     }
 
     // Also emit locally for any server-side listeners

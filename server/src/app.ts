@@ -19,7 +19,15 @@ app.use(helmet({
   contentSecurityPolicy: false // Allow inline styles for development
 }))
 app.use(cors())
-app.use(compression())
+app.use(compression({
+  // Don't compress SSE responses - they need to stream unbuffered
+  filter: (req, res) => {
+    if (req.path === '/api/v1/events') {
+      return false
+    }
+    return compression.filter(req, res)
+  }
+}))
 app.use(express.json())
 
 // API routes

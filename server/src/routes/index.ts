@@ -11,12 +11,17 @@ const router = Router()
 
 // Server-Sent Events endpoint for real-time updates
 router.get('/events', (req: Request, res: Response) => {
+  // Disable any buffering
+  req.socket?.setNoDelay(true)
+
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*'
+    'Access-Control-Allow-Origin': '*',
+    'X-Accel-Buffering': 'no'
   })
+  res.flushHeaders()
 
   // Send initial connection message
   res.write(`data: ${JSON.stringify({ type: 'connected', timestamp: Date.now() })}\n\n`)

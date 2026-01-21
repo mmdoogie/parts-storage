@@ -89,7 +89,7 @@ function scheduleRefresh() {
 }
 
 function setupSSE() {
-  // Connect to SSE endpoint
+  // Connect to SSE endpoint via proxy
   const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1'
   const sseUrl = `${apiBase}/events`
 
