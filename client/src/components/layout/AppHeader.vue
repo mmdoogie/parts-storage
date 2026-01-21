@@ -306,9 +306,5 @@ async function createNewWall() {
     top: var(--spacing-md);
     right: var(--spacing-md);
   }
-
-  .app-header {
-    position: relative;
-  }
 }
 </style>
