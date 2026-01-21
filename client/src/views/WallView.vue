@@ -228,9 +228,14 @@ function handleDrawerClick(drawerId: number) {
   drawerStore.setOpenDrawer(drawerId)
 }
 
-function handleHighlightDrawer(drawerId: number) {
+async function handleHighlightDrawer(drawerId: number, wallId: number) {
+  // Switch to the correct wall if needed
+  if (wallStore.currentWall?.id !== wallId) {
+    await wallStore.fetchWall(wallId)
+  }
+
   searchStore.highlightDrawer(drawerId)
-  // Scroll to the highlighted drawer
+  // Scroll to the highlighted drawer after wall has rendered
   nextTick(() => {
     const drawerElement = document.querySelector(`[data-drawer-id="${drawerId}"]`)
     if (drawerElement) {

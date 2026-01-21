@@ -11,7 +11,7 @@ defineProps<Props>()
 
 const emit = defineEmits<{
   select: [drawerId: number]
-  highlight: [drawerId: number]
+  highlight: [drawerId: number, wallId: number]
 }>()
 
 const searchStore = useSearchStore()
@@ -25,10 +25,10 @@ function getResultIcon(type: string) {
   }
 }
 
-function handleHighlight(event: Event, drawerId: number) {
+function handleHighlight(event: Event, drawerId: number, wallId: number) {
   event.stopPropagation()
   searchStore.clearSearch()
-  emit('highlight', drawerId)
+  emit('highlight', drawerId, wallId)
 }
 </script>
 
@@ -59,7 +59,7 @@ function handleHighlight(event: Event, drawerId: number) {
         <div class="result-content">
           <span class="result-name">{{ result.name }}</span>
           <span class="result-path">
-            {{ result.path.caseName }} → {{ result.path.drawerName || 'Unnamed drawer' }}
+            {{ result.path.wallName }} → {{ result.path.caseName }} → {{ result.path.drawerName || 'Unnamed drawer' }}
           </span>
           <span v-if="result.matchedField !== 'name'" class="result-match">
             Matched in {{ result.matchedField }}: {{ result.matchedText }}
@@ -67,7 +67,7 @@ function handleHighlight(event: Event, drawerId: number) {
         </div>
         <button
           class="highlight-button"
-          @click="handleHighlight($event, result.path.drawerId)"
+          @click="handleHighlight($event, result.path.drawerId, result.path.wallId)"
           title="Show on wall"
           aria-label="Highlight drawer on wall"
         >
