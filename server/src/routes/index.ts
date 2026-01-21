@@ -5,8 +5,36 @@ import * as drawerController from '../controllers/drawerController.js'
 import * as partController from '../controllers/partController.js'
 import * as categoryController from '../controllers/categoryController.js'
 import { search } from '../services/searchService.js'
+import { storageEvents } from '../events.js'
 
 const router = Router()
+
+// Server-Sent Events endpoint for real-time updates
+router.get('/events', (req: Request, res: Response) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*'
+  })
+
+  // Send initial connection message
+  res.write(`data: ${JSON.stringify({ type: 'connected', timestamp: Date.now() })}\n\n`)
+
+  // Add client to broadcast list
+  storageEvents.addClient(res)
+
+  // Send keepalive every 30 seconds
+  const keepalive = setInterval(() => {
+    res.write(`: keepalive\n\n`)
+  }, 30000)
+
+  // Cleanup on disconnect
+  req.on('close', () => {
+    clearInterval(keepalive)
+    storageEvents.removeClient(res)
+  })
+})
 
 // Walls
 router.get('/walls', wallController.getWalls)

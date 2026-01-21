@@ -71,7 +71,63 @@ const addDrawerLoading = ref(false)
 const isEditingCase = ref(false)
 const editingCaseData = ref<Case | null>(null)
 
-// Refresh wall data when tab regains focus (handles MCP changes)
+// SSE connection for real-time updates
+let eventSource: EventSource | null = null
+let refreshDebounceTimer: ReturnType<typeof setTimeout> | null = null
+const REFRESH_DEBOUNCE = 500 // Wait for events to settle before refreshing
+
+function scheduleRefresh() {
+  // Clear any pending refresh
+  if (refreshDebounceTimer) {
+    clearTimeout(refreshDebounceTimer)
+  }
+  // Schedule a new refresh - resets each time an event arrives
+  refreshDebounceTimer = setTimeout(() => {
+    refreshDebounceTimer = null
+    refreshWall()
+  }, REFRESH_DEBOUNCE)
+}
+
+function setupSSE() {
+  // Connect to SSE endpoint
+  const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+  const sseUrl = `${apiBase}/events`
+
+  eventSource = new EventSource(sseUrl)
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data)
+
+      // Skip connected message
+      if (data.type === 'connected') return
+
+      // Check if event is relevant to current wall
+      if (wallStore.currentWall && data.wallId === wallStore.currentWall.id) {
+        scheduleRefresh()
+      }
+    } catch (e) {
+      console.error('SSE parse error:', e)
+    }
+  }
+
+  eventSource.onerror = () => {
+    // Reconnect after error
+    eventSource?.close()
+    setTimeout(setupSSE, 5000)
+  }
+}
+
+function cleanupSSE() {
+  if (refreshDebounceTimer) {
+    clearTimeout(refreshDebounceTimer)
+    refreshDebounceTimer = null
+  }
+  eventSource?.close()
+  eventSource = null
+}
+
+// Refresh wall data when tab regains focus (fallback for SSE)
 let lastFocusRefresh = Date.now()
 const FOCUS_REFRESH_INTERVAL = 5000 // Don't refresh more than once every 5 seconds
 
@@ -92,11 +148,15 @@ onMounted(async () => {
   await categoryStore.fetchCategories()
   templates.value = await caseService.getLayoutTemplates()
 
-  // Add focus listener for MCP sync
+  // Setup SSE for real-time updates
+  setupSSE()
+
+  // Add focus listener as fallback
   window.addEventListener('focus', handleWindowFocus)
 })
 
 onUnmounted(() => {
+  cleanupSSE()
   window.removeEventListener('focus', handleWindowFocus)
 })
 

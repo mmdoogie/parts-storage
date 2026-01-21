@@ -1,7 +1,18 @@
 import { Request, Response, NextFunction } from 'express'
 import { getDb, toCamelCase } from '../config/database.js'
 import { AppError } from '../middleware/errorHandler.js'
+import { storageEvents } from '../events.js'
 import type { Drawer, DrawerSize, Part, Category, PartLink } from '../types/index.js'
+
+// Helper to get wallId from drawerId
+function getWallIdFromDrawer(db: ReturnType<typeof getDb>, drawerId: number): number | undefined {
+  const result = db.prepare(`
+    SELECT c.wall_id FROM drawers d
+    JOIN cases c ON d.case_id = c.id
+    WHERE d.id = ?
+  `).get(drawerId) as { wall_id: number } | undefined
+  return result?.wall_id
+}
 
 export function getDrawerSizes(_req: Request, res: Response, next: NextFunction) {
   try {
@@ -115,6 +126,12 @@ export function createDrawer(req: Request, res: Response, next: NextFunction) {
     const dr = drawerRow as Record<string, unknown>
     const drawer = toCamelCase<Drawer>(dr)
 
+    // Broadcast event
+    const wallId = getWallIdFromDrawer(db, drawer.id)
+    if (wallId) {
+      storageEvents.broadcast({ type: 'drawer:created', wallId, drawerId: drawer.id })
+    }
+
     res.status(201).json({
       success: true,
       data: {
@@ -181,6 +198,12 @@ export function updateDrawer(req: Request, res: Response, next: NextFunction) {
 
     const dr = drawerRow as Record<string, unknown>
     const drawer = toCamelCase<Drawer>(dr)
+
+    // Broadcast event
+    const wallId = getWallIdFromDrawer(db, drawer.id)
+    if (wallId) {
+      storageEvents.broadcast({ type: 'drawer:updated', wallId, drawerId: drawer.id })
+    }
 
     res.json({
       success: true,
@@ -270,11 +293,18 @@ export function moveDrawer(req: Request, res: Response, next: NextFunction) {
     `).get(id)
 
     const dr = updatedDrawer as Record<string, unknown>
+    const movedDrawer = toCamelCase<Drawer>(dr)
+
+    // Broadcast event
+    const wallId = getWallIdFromDrawer(db, movedDrawer.id)
+    if (wallId) {
+      storageEvents.broadcast({ type: 'drawer:updated', wallId, drawerId: movedDrawer.id })
+    }
 
     res.json({
       success: true,
       data: {
-        ...toCamelCase<Drawer>(dr),
+        ...movedDrawer,
         drawerSize: {
           id: dr.drawer_size_id as number,
           name: dr.size_name as string,
@@ -292,13 +322,22 @@ export function deleteDrawer(req: Request, res: Response, next: NextFunction) {
   try {
     const db = getDb()
     const { id } = req.params
+    const drawerId = parseInt(id)
 
-    const existing = db.prepare('SELECT * FROM drawers WHERE id = ?').get(id)
+    const existing = db.prepare('SELECT * FROM drawers WHERE id = ?').get(drawerId)
     if (!existing) {
       throw new AppError(404, 'NOT_FOUND', 'Drawer not found')
     }
 
-    db.prepare('DELETE FROM drawers WHERE id = ?').run(id)
+    // Get wallId before deleting
+    const wallId = getWallIdFromDrawer(db, drawerId)
+
+    db.prepare('DELETE FROM drawers WHERE id = ?').run(drawerId)
+
+    // Broadcast event
+    if (wallId) {
+      storageEvents.broadcast({ type: 'drawer:deleted', wallId, drawerId })
+    }
 
     res.json({ success: true, data: null })
   } catch (err) {

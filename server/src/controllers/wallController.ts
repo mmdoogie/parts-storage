@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import { getDb, toCamelCase } from '../config/database.js'
 import { AppError } from '../middleware/errorHandler.js'
+import { storageEvents } from '../events.js'
 import type { Wall, Case, Drawer, DrawerSize, Category } from '../types/index.js'
 
 export function getWalls(_req: Request, res: Response, next: NextFunction) {
@@ -96,10 +97,14 @@ export function createWall(req: Request, res: Response, next: NextFunction) {
     `).run(name, gridColumns, gridGap)
 
     const wall = db.prepare('SELECT * FROM walls WHERE id = ?').get(result.lastInsertRowid)
+    const wallData = toCamelCase<Wall>(wall as Record<string, unknown>)
+
+    // Broadcast event
+    storageEvents.broadcast({ type: 'wall:updated', wallId: wallData.id })
 
     res.status(201).json({
       success: true,
-      data: toCamelCase<Wall>(wall as Record<string, unknown>)
+      data: wallData
     })
   } catch (err) {
     next(err)
@@ -127,10 +132,14 @@ export function updateWall(req: Request, res: Response, next: NextFunction) {
     `).run(name, gridColumns, gridGap, id)
 
     const wall = db.prepare('SELECT * FROM walls WHERE id = ?').get(id)
+    const wallData = toCamelCase<Wall>(wall as Record<string, unknown>)
+
+    // Broadcast event
+    storageEvents.broadcast({ type: 'wall:updated', wallId: wallData.id })
 
     res.json({
       success: true,
-      data: toCamelCase<Wall>(wall as Record<string, unknown>)
+      data: wallData
     })
   } catch (err) {
     next(err)
@@ -141,13 +150,17 @@ export function deleteWall(req: Request, res: Response, next: NextFunction) {
   try {
     const db = getDb()
     const { id } = req.params
+    const wallId = parseInt(id)
 
-    const existing = db.prepare('SELECT * FROM walls WHERE id = ?').get(id)
+    const existing = db.prepare('SELECT * FROM walls WHERE id = ?').get(wallId)
     if (!existing) {
       throw new AppError(404, 'NOT_FOUND', 'Wall not found')
     }
 
-    db.prepare('DELETE FROM walls WHERE id = ?').run(id)
+    db.prepare('DELETE FROM walls WHERE id = ?').run(wallId)
+
+    // Broadcast event
+    storageEvents.broadcast({ type: 'wall:updated', wallId })
 
     res.json({ success: true, data: null })
   } catch (err) {

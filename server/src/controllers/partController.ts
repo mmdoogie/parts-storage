@@ -1,7 +1,29 @@
 import { Request, Response, NextFunction } from 'express'
 import { getDb, toCamelCase } from '../config/database.js'
 import { AppError } from '../middleware/errorHandler.js'
+import { storageEvents } from '../events.js'
 import type { Part, PartLink } from '../types/index.js'
+
+// Helper to get wallId from partId
+function getWallIdFromPart(db: ReturnType<typeof getDb>, partId: number): number | undefined {
+  const result = db.prepare(`
+    SELECT c.wall_id FROM parts p
+    JOIN drawers d ON p.drawer_id = d.id
+    JOIN cases c ON d.case_id = c.id
+    WHERE p.id = ?
+  `).get(partId) as { wall_id: number } | undefined
+  return result?.wall_id
+}
+
+// Helper to get wallId from drawerId
+function getWallIdFromDrawer(db: ReturnType<typeof getDb>, drawerId: number): number | undefined {
+  const result = db.prepare(`
+    SELECT c.wall_id FROM drawers d
+    JOIN cases c ON d.case_id = c.id
+    WHERE d.id = ?
+  `).get(drawerId) as { wall_id: number } | undefined
+  return result?.wall_id
+}
 
 export function getParts(req: Request, res: Response, next: NextFunction) {
   try {
@@ -83,11 +105,18 @@ export function createPart(req: Request, res: Response, next: NextFunction) {
     `).run(drawerId, name, notes, sortOrder)
 
     const partRow = db.prepare('SELECT * FROM parts WHERE id = ?').get(result.lastInsertRowid)
+    const part = toCamelCase<Part>(partRow as Record<string, unknown>)
+
+    // Broadcast event
+    const wallId = getWallIdFromDrawer(db, drawerId)
+    if (wallId) {
+      storageEvents.broadcast({ type: 'part:created', wallId, partId: part.id })
+    }
 
     res.status(201).json({
       success: true,
       data: {
-        ...toCamelCase<Part>(partRow as Record<string, unknown>),
+        ...part,
         links: []
       }
     })
@@ -117,15 +146,22 @@ export function updatePart(req: Request, res: Response, next: NextFunction) {
     `).run(name, notes, sortOrder, id)
 
     const partRow = db.prepare('SELECT * FROM parts WHERE id = ?').get(id)
+    const part = toCamelCase<Part>(partRow as Record<string, unknown>)
 
     const linkRows = db.prepare(`
       SELECT * FROM part_links WHERE part_id = ? ORDER BY sort_order
     `).all(id)
 
+    // Broadcast event
+    const wallId = getWallIdFromPart(db, part.id)
+    if (wallId) {
+      storageEvents.broadcast({ type: 'part:updated', wallId, partId: part.id })
+    }
+
     res.json({
       success: true,
       data: {
-        ...toCamelCase<Part>(partRow as Record<string, unknown>),
+        ...part,
         links: linkRows.map(l => toCamelCase<PartLink>(l as Record<string, unknown>))
       }
     })
@@ -138,13 +174,22 @@ export function deletePart(req: Request, res: Response, next: NextFunction) {
   try {
     const db = getDb()
     const { id } = req.params
+    const partId = parseInt(id)
 
-    const existing = db.prepare('SELECT * FROM parts WHERE id = ?').get(id)
+    const existing = db.prepare('SELECT * FROM parts WHERE id = ?').get(partId)
     if (!existing) {
       throw new AppError(404, 'NOT_FOUND', 'Part not found')
     }
 
-    db.prepare('DELETE FROM parts WHERE id = ?').run(id)
+    // Get wallId before deleting
+    const wallId = getWallIdFromPart(db, partId)
+
+    db.prepare('DELETE FROM parts WHERE id = ?').run(partId)
+
+    // Broadcast event
+    if (wallId) {
+      storageEvents.broadcast({ type: 'part:deleted', wallId, partId })
+    }
 
     res.json({ success: true, data: null })
   } catch (err) {

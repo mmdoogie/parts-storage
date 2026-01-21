@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import { getDb, toCamelCase } from '../config/database.js'
 import { AppError } from '../middleware/errorHandler.js'
+import { storageEvents } from '../events.js'
 import type { Case, Drawer, DrawerSize, Category, LayoutTemplate, DrawerPlacement } from '../types/index.js'
 
 export function getCases(req: Request, res: Response, next: NextFunction) {
@@ -113,10 +114,14 @@ export function createCase(req: Request, res: Response, next: NextFunction) {
            gridRowStart, gridRowSpan, internalColumns, internalRows, color)
 
     const caseRow = db.prepare('SELECT * FROM cases WHERE id = ?').get(result.lastInsertRowid)
+    const caseData = toCamelCase<Case>(caseRow as Record<string, unknown>)
+
+    // Broadcast event
+    storageEvents.broadcast({ type: 'case:created', wallId: caseData.wallId, caseId: caseData.id })
 
     res.status(201).json({
       success: true,
-      data: toCamelCase<Case>(caseRow as Record<string, unknown>)
+      data: caseData
     })
   } catch (err) {
     next(err)
@@ -171,10 +176,14 @@ export function updateCase(req: Request, res: Response, next: NextFunction) {
     )
 
     const caseRow = db.prepare('SELECT * FROM cases WHERE id = ?').get(id)
+    const caseData = toCamelCase<Case>(caseRow as Record<string, unknown>)
+
+    // Broadcast event
+    storageEvents.broadcast({ type: 'case:updated', wallId: caseData.wallId, caseId: caseData.id })
 
     res.json({
       success: true,
-      data: toCamelCase<Case>(caseRow as Record<string, unknown>)
+      data: caseData
     })
   } catch (err) {
     next(err)
@@ -203,10 +212,14 @@ export function updateCasePosition(req: Request, res: Response, next: NextFuncti
     `).run(gridColumnStart, gridColumnSpan, gridRowStart, gridRowSpan, id)
 
     const caseRow = db.prepare('SELECT * FROM cases WHERE id = ?').get(id)
+    const caseData = toCamelCase<Case>(caseRow as Record<string, unknown>)
+
+    // Broadcast event
+    storageEvents.broadcast({ type: 'case:updated', wallId: caseData.wallId, caseId: caseData.id })
 
     res.json({
       success: true,
-      data: toCamelCase<Case>(caseRow as Record<string, unknown>)
+      data: caseData
     })
   } catch (err) {
     next(err)
@@ -218,12 +231,18 @@ export function deleteCase(req: Request, res: Response, next: NextFunction) {
     const db = getDb()
     const { id } = req.params
 
-    const existing = db.prepare('SELECT * FROM cases WHERE id = ?').get(id)
+    const existing = db.prepare('SELECT * FROM cases WHERE id = ?').get(id) as Record<string, unknown> | undefined
     if (!existing) {
       throw new AppError(404, 'NOT_FOUND', 'Case not found')
     }
 
+    const wallId = existing.wall_id as number
+    const caseId = existing.id as number
+
     db.prepare('DELETE FROM cases WHERE id = ?').run(id)
+
+    // Broadcast event
+    storageEvents.broadcast({ type: 'case:deleted', wallId, caseId })
 
     res.json({ success: true, data: null })
   } catch (err) {
@@ -272,10 +291,14 @@ export function applyTemplate(req: Request, res: Response, next: NextFunction) {
 
     // Return updated case
     const updatedCase = db.prepare('SELECT * FROM cases WHERE id = ?').get(id)
+    const caseData = toCamelCase<Case>(updatedCase as Record<string, unknown>)
+
+    // Broadcast event
+    storageEvents.broadcast({ type: 'case:updated', wallId: caseData.wallId, caseId: caseData.id })
 
     res.json({
       success: true,
-      data: toCamelCase<Case>(updatedCase as Record<string, unknown>)
+      data: caseData
     })
   } catch (err) {
     next(err)
