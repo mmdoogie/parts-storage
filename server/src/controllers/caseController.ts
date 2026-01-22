@@ -59,9 +59,8 @@ export function getCase(req: Request, res: Response, next: NextFunction) {
 
       const categoryRows = db.prepare(`
         SELECT DISTINCT c.* FROM categories c
-        JOIN part_categories pc ON c.id = pc.category_id
-        JOIN parts p ON pc.part_id = p.id
-        WHERE p.drawer_id = ?
+        JOIN drawer_categories dc ON c.id = dc.category_id
+        WHERE dc.drawer_id = ?
       `).all(drawer.id)
 
       return {
