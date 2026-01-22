@@ -614,6 +614,80 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: 'add_drawer_category',
+        description: 'Add a category to a drawer for organization.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            drawerId: {
+              type: 'number',
+              description: 'The ID of the drawer to add the category to',
+            },
+            categoryId: {
+              type: 'number',
+              description: 'The ID of the category to add',
+            },
+          },
+          required: ['drawerId', 'categoryId'],
+        },
+      },
+      {
+        name: 'remove_drawer_category',
+        description: 'Remove a category from a drawer.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            drawerId: {
+              type: 'number',
+              description: 'The ID of the drawer to remove the category from',
+            },
+            categoryId: {
+              type: 'number',
+              description: 'The ID of the category to remove',
+            },
+          },
+          required: ['drawerId', 'categoryId'],
+        },
+      },
+      {
+        name: 'bulk_add_drawer_category',
+        description: 'Add a category to multiple drawers at once.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            drawerIds: {
+              type: 'array',
+              items: { type: 'number' },
+              description: 'Array of drawer IDs to add the category to',
+            },
+            categoryId: {
+              type: 'number',
+              description: 'The ID of the category to add',
+            },
+          },
+          required: ['drawerIds', 'categoryId'],
+        },
+      },
+      {
+        name: 'bulk_remove_drawer_category',
+        description: 'Remove a category from multiple drawers at once.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            drawerIds: {
+              type: 'array',
+              items: { type: 'number' },
+              description: 'Array of drawer IDs to remove the category from',
+            },
+            categoryId: {
+              type: 'number',
+              description: 'The ID of the category to remove',
+            },
+          },
+          required: ['drawerIds', 'categoryId'],
+        },
+      },
+      {
         name: 'list_layout_templates',
         description: 'List all available layout templates for cases.',
         inputSchema: {
@@ -1191,6 +1265,84 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: `Added link "${title || url}" to part ${partId}`,
+            },
+          ],
+        };
+      }
+
+      case 'add_drawer_category': {
+        const { drawerId, categoryId } = args as {
+          drawerId: number;
+          categoryId: number;
+        };
+        const categories = await apiRequest<Category[]>(`/drawers/${drawerId}/categories`, 'POST', {
+          categoryId,
+        });
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Added category to drawer ${drawerId}. Drawer now has ${categories.length} category(ies).`,
+            },
+          ],
+        };
+      }
+
+      case 'remove_drawer_category': {
+        const { drawerId, categoryId } = args as {
+          drawerId: number;
+          categoryId: number;
+        };
+        await apiRequest(`/drawers/${drawerId}/categories/${categoryId}`, 'DELETE');
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Removed category ${categoryId} from drawer ${drawerId}.`,
+            },
+          ],
+        };
+      }
+
+      case 'bulk_add_drawer_category': {
+        const { drawerIds, categoryId } = args as {
+          drawerIds: number[];
+          categoryId: number;
+        };
+        const results = await Promise.allSettled(
+          drawerIds.map(drawerId =>
+            apiRequest<Category[]>(`/drawers/${drawerId}/categories`, 'POST', { categoryId })
+          )
+        );
+        const succeeded = results.filter(r => r.status === 'fulfilled').length;
+        const failed = results.filter(r => r.status === 'rejected').length;
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Added category ${categoryId} to ${succeeded} drawer(s).${failed > 0 ? ` ${failed} failed.` : ''}`,
+            },
+          ],
+        };
+      }
+
+      case 'bulk_remove_drawer_category': {
+        const { drawerIds, categoryId } = args as {
+          drawerIds: number[];
+          categoryId: number;
+        };
+        const results = await Promise.allSettled(
+          drawerIds.map(drawerId =>
+            apiRequest(`/drawers/${drawerId}/categories/${categoryId}`, 'DELETE')
+          )
+        );
+        const succeeded = results.filter(r => r.status === 'fulfilled').length;
+        const failed = results.filter(r => r.status === 'rejected').length;
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Removed category ${categoryId} from ${succeeded} drawer(s).${failed > 0 ? ` ${failed} failed.` : ''}`,
             },
           ],
         };
