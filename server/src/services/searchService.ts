@@ -280,10 +280,13 @@ export function search(query: string, options: { limit?: number; categoryId?: nu
     LIMIT ?
   `).all(likePattern, limit) as Record<string, unknown>[]
 
+  const categoryMatchedDrawers = new Map<number, string>()
+
   for (const row of categoryResults) {
     const key = `drawer-${row.id}`
     if (!seen.has(key)) {
       seen.add(key)
+      categoryMatchedDrawers.set(row.id as number, row.category_name as string)
       results.push({
         type: 'drawer',
         id: row.id as number,
@@ -300,6 +303,53 @@ export function search(query: string, options: { limit?: number; categoryId?: nu
           drawerName: row.name as string | null
         }
       })
+    }
+  }
+
+  // Also include all parts from category-matched drawers
+  if (categoryMatchedDrawers.size > 0) {
+    const drawerIds = [...categoryMatchedDrawers.keys()]
+    const placeholders = drawerIds.map(() => '?').join(',')
+    const categoryDrawerPartsResults = db.prepare(`
+      SELECT
+        p.id,
+        p.name,
+        p.notes,
+        p.drawer_id,
+        d.name as drawer_name,
+        d.case_id,
+        c.name as case_name,
+        c.wall_id,
+        w.name as wall_name
+      FROM parts p
+      JOIN drawers d ON p.drawer_id = d.id
+      JOIN cases c ON d.case_id = c.id
+      JOIN walls w ON c.wall_id = w.id
+      WHERE p.drawer_id IN (${placeholders})
+      ORDER BY p.sort_order, p.name
+    `).all(...drawerIds) as Record<string, unknown>[]
+
+    for (const row of categoryDrawerPartsResults) {
+      const key = `part-${row.id}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        results.push({
+          type: 'part',
+          id: row.id as number,
+          name: row.name as string,
+          matchedField: 'category',
+          matchedText: categoryMatchedDrawers.get(row.drawer_id as number) as string,
+          score: 0,
+          path: {
+            wallId: row.wall_id as number,
+            wallName: row.wall_name as string,
+            caseId: row.case_id as number,
+            caseName: row.case_name as string,
+            drawerId: row.drawer_id as number,
+            drawerName: row.drawer_name as string | null
+          }
+        })
+      }
     }
   }
 
