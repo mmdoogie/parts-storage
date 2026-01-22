@@ -1,22 +1,85 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useSearchStore } from '@/stores'
+import { computed, ref, onMounted } from 'vue'
+import { useSearchStore, useCategoryStore } from '@/stores'
 
 const model = defineModel<string>({ default: '' })
 const searchStore = useSearchStore()
+const categoryStore = useCategoryStore()
 
 const inputRef = ref<HTMLInputElement | null>(null)
+const isFocused = ref(false)
+const selectedIndex = ref(-1)
 
 const hasQuery = computed(() => model.value.trim().length > 0)
+
+const suggestions = computed(() => {
+  const query = model.value.trim().toLowerCase()
+  if (!query || !isFocused.value) return []
+  return categoryStore.categories.filter(cat =>
+    cat.name.toLowerCase().includes(query)
+  )
+})
+
+const showSuggestions = computed(() => suggestions.value.length > 0)
 
 function clear() {
   model.value = ''
   searchStore.clearSearch()
+  selectedIndex.value = -1
 }
 
 function focus() {
   inputRef.value?.focus()
 }
+
+function handleFocus() {
+  isFocused.value = true
+}
+
+function handleBlur() {
+  // Delay to allow click on suggestion to register
+  setTimeout(() => {
+    isFocused.value = false
+    selectedIndex.value = -1
+  }, 150)
+}
+
+function handleKeydown(event: KeyboardEvent) {
+  if (!showSuggestions.value) return
+
+  switch (event.key) {
+    case 'ArrowDown':
+      event.preventDefault()
+      selectedIndex.value = Math.min(selectedIndex.value + 1, suggestions.value.length - 1)
+      break
+    case 'ArrowUp':
+      event.preventDefault()
+      selectedIndex.value = Math.max(selectedIndex.value - 1, -1)
+      break
+    case 'Enter':
+      if (selectedIndex.value >= 0) {
+        event.preventDefault()
+        selectSuggestion(suggestions.value[selectedIndex.value].name)
+      }
+      break
+    case 'Escape':
+      isFocused.value = false
+      selectedIndex.value = -1
+      break
+  }
+}
+
+function selectSuggestion(name: string) {
+  model.value = name
+  isFocused.value = false
+  selectedIndex.value = -1
+}
+
+onMounted(() => {
+  if (categoryStore.categories.length === 0) {
+    categoryStore.fetchCategories()
+  }
+})
 
 defineExpose({ focus })
 </script>
@@ -33,6 +96,9 @@ defineExpose({ focus })
       type="text"
       placeholder="Search parts, categories..."
       class="search-input"
+      @focus="handleFocus"
+      @blur="handleBlur"
+      @keydown="handleKeydown"
     />
     <button
       v-if="hasQuery"
@@ -45,6 +111,19 @@ defineExpose({ focus })
       </svg>
     </button>
     <span v-if="searchStore.isSearching" class="search-spinner" />
+
+    <div v-if="showSuggestions" class="suggestions-dropdown">
+      <button
+        v-for="(suggestion, index) in suggestions"
+        :key="suggestion.id"
+        class="suggestion-item"
+        :class="{ 'is-selected': index === selectedIndex }"
+        @mousedown="selectSuggestion(suggestion.name)"
+      >
+        <span class="suggestion-color" :style="{ backgroundColor: suggestion.color }" />
+        <span class="suggestion-name">{{ suggestion.name }}</span>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -118,5 +197,50 @@ defineExpose({ focus })
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+.suggestions-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: var(--spacing-xs);
+  background: white;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  z-index: 100;
+}
+
+.suggestion-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  text-align: left;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.suggestion-item:hover,
+.suggestion-item.is-selected {
+  background: rgba(52, 152, 219, 0.1);
+}
+
+.suggestion-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.suggestion-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
