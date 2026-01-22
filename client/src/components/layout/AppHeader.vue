@@ -10,6 +10,7 @@ const wallStore = useWallStore()
 
 const isWallDropdownOpen = ref(false)
 const wallSelectorRef = ref<HTMLElement | null>(null)
+const searchBarRef = ref<InstanceType<typeof SearchBar> | null>(null)
 
 const walls = computed(() => wallStore.walls)
 const currentWall = computed(() => wallStore.currentWall)
@@ -28,12 +29,29 @@ function handleClickOutside(event: MouseEvent) {
   }
 }
 
+function handleKeydown(event: KeyboardEvent) {
+  // "/" to focus search bar, but not when typing in an input/textarea
+  if (event.key === '/' && !isInputFocused()) {
+    event.preventDefault()
+    searchBarRef.value?.focus()
+  }
+}
+
+function isInputFocused(): boolean {
+  const activeElement = document.activeElement
+  if (!activeElement) return false
+  const tagName = activeElement.tagName.toLowerCase()
+  return tagName === 'input' || tagName === 'textarea' || (activeElement as HTMLElement).isContentEditable
+}
+
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
+  document.addEventListener('keydown', handleKeydown)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('keydown', handleKeydown)
 })
 
 async function selectWall(wallId: number) {
@@ -83,7 +101,7 @@ async function createNewWall() {
           </div>
         </div>
       </div>
-      <SearchBar v-model="searchStore.query" class="header-search" />
+      <SearchBar ref="searchBarRef" v-model="searchStore.query" class="header-search" />
       <div class="header-actions">
         <BaseButton variant="primary" size="sm" @click="wallStore.openAddCaseModal()">
           <svg class="button-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

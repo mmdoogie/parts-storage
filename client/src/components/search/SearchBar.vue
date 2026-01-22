@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useSearchStore } from '@/stores'
 
 const model = defineModel<string>({ default: '' })
 const searchStore = useSearchStore()
+
+const inputRef = ref<HTMLInputElement | null>(null)
 
 const hasQuery = computed(() => model.value.trim().length > 0)
 
@@ -11,6 +13,12 @@ function clear() {
   model.value = ''
   searchStore.clearSearch()
 }
+
+function focus() {
+  inputRef.value?.focus()
+}
+
+defineExpose({ focus })
 </script>
 
 <template>
@@ -20,6 +28,7 @@ function clear() {
       <path d="M21 21l-4.35-4.35" />
     </svg>
     <input
+      ref="inputRef"
       v-model="model"
       type="text"
       placeholder="Search parts, categories..."
