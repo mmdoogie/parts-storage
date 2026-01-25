@@ -18,6 +18,7 @@ const emit = defineEmits<{
   'edit-case': [caseId: number]
   'case-drag-start': [caseId: number, event: DragEvent]
   'case-drag-end': []
+  'resize-start': [caseId: number, event: MouseEvent]
 }>()
 
 
@@ -92,6 +93,12 @@ function isSlotCovered(col: number, row: number): boolean {
 function isHighlighted(drawerId: number): boolean {
   return props.highlightedDrawerIds.has(drawerId)
 }
+
+function handleResizeStart(event: MouseEvent) {
+  event.preventDefault()
+  event.stopPropagation()
+  emit('resize-start', props.caseData.id, event)
+}
 </script>
 
 <template>
@@ -136,6 +143,16 @@ function isHighlighted(drawerId: number): boolean {
         </template>
       </template>
     </div>
+    <!-- Resize handle -->
+    <div
+      class="resize-handle"
+      @mousedown="handleResizeStart"
+      title="Drag to resize"
+    >
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d="M22 22H20V20H22V22ZM22 18H20V16H22V18ZM18 22H16V20H18V22ZM22 14H20V12H22V14ZM18 18H16V16H18V18ZM14 22H12V20H14V22Z"/>
+      </svg>
+    </div>
   </div>
 </template>
 
@@ -147,6 +164,31 @@ function isHighlighted(drawerId: number): boolean {
   flex-direction: column;
   min-height: 0; /* Allow case to fit within wall grid constraints */
   overflow: hidden;
+  position: relative;
+}
+
+.resize-handle {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  color: rgba(255, 255, 255, 0.4);
+  transition: color var(--transition-fast);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.resize-handle:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.resize-handle svg {
+  width: 14px;
+  height: 14px;
 }
 
 

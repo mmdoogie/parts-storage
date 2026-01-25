@@ -513,6 +513,20 @@ async function handleCaseMove(caseId: number, newColumn: number, newRow: number)
     console.error('Failed to move case:', e)
   }
 }
+
+async function handleCaseResize(caseId: number, newColumnSpan: number, newRowSpan: number) {
+  markLocalMutation() // Mark before API call so SSE events are ignored
+  try {
+    const updatedCase = await caseService.updateCasePosition(caseId, {
+      gridColumnSpan: newColumnSpan,
+      gridRowSpan: newRowSpan
+    })
+    // Update locally instead of refreshing wall
+    wallStore.updateCaseInWall(updatedCase)
+  } catch (e) {
+    console.error('Failed to resize case:', e)
+  }
+}
 </script>
 
 <template>
@@ -540,6 +554,7 @@ async function handleCaseMove(caseId: number, newColumn: number, newRow: number)
         @add-drawer="handleAddDrawer"
         @edit-case="handleEditCase"
         @case-move="handleCaseMove"
+        @case-resize="handleCaseResize"
       />
 
       <div v-else class="empty-state">

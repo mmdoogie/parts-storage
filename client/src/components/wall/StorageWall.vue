@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onUnmounted } from 'vue'
 import type { Case } from '@/types'
 import { useSearchStore } from '@/stores'
 import StorageCase from '@/components/case/StorageCase.vue'
@@ -22,6 +22,7 @@ const emit = defineEmits<{
   'add-drawer': [caseId: number, column: number, row: number]
   'edit-case': [caseId: number]
   'case-move': [caseId: number, newColumn: number, newRow: number]
+  'case-resize': [caseId: number, newColumnSpan: number, newRowSpan: number]
 }>()
 
 const searchStore = useSearchStore()
@@ -30,6 +31,12 @@ const searchStore = useSearchStore()
 const isDraggingCase = ref(false)
 const draggingCaseId = ref<number | null>(null)
 const draggingCaseSize = ref({ columnSpan: 1, rowSpan: 1 })
+
+// Case resize state
+const isResizingCase = ref(false)
+const resizingCaseId = ref<number | null>(null)
+const resizingCaseStart = ref({ col: 1, row: 1 })
+const resizePreview = ref<{ colSpan: number; rowSpan: number; isValid: boolean } | null>(null)
 
 // Calculate the maximum row used by cases to size the grid
 const maxRow = computed(() => {
@@ -62,6 +69,105 @@ function handleCaseDragEnd() {
   draggingCaseId.value = null
   previewPosition.value = null
 }
+
+// Resize handlers
+function handleResizeStart(caseId: number, event: MouseEvent) {
+  const caseData = props.cases.find(c => c.id === caseId)
+  if (!caseData) return
+
+  isResizingCase.value = true
+  resizingCaseId.value = caseId
+  resizingCaseStart.value = {
+    col: caseData.gridColumnStart,
+    row: caseData.gridRowStart
+  }
+  resizePreview.value = {
+    colSpan: caseData.gridColumnSpan,
+    rowSpan: caseData.gridRowSpan,
+    isValid: true
+  }
+
+  // Add global mouse listeners
+  document.addEventListener('mousemove', handleResizeMove)
+  document.addEventListener('mouseup', handleResizeEnd)
+}
+
+function handleResizeMove(event: MouseEvent) {
+  if (!isResizingCase.value || !resizingCaseId.value) return
+
+  const wall = wallRef.value
+  if (!wall) return
+
+  const rect = wall.getBoundingClientRect()
+  const x = event.clientX - rect.left
+  const y = event.clientY - rect.top
+
+  const computedStyle = getComputedStyle(wall)
+  const paddingLeft = parseFloat(computedStyle.paddingLeft) || 24
+  const paddingTop = parseFloat(computedStyle.paddingTop) || 24
+
+  const gap = 16
+  const availableWidth = rect.width - paddingLeft * 2
+  const availableHeight = rect.height - paddingTop * 2
+  const cellWidth = (availableWidth - (props.gridColumns - 1) * gap) / props.gridColumns
+  const rows = maxRow.value
+  const cellHeight = (availableHeight - (rows - 1) * gap) / rows
+
+  // Calculate which column/row the mouse is over
+  const mouseCol = Math.max(1, Math.floor((x - paddingLeft) / (cellWidth + gap)) + 1)
+  const mouseRow = Math.max(1, Math.floor((y - paddingTop) / (cellHeight + gap)) + 1)
+
+  // Calculate new span based on mouse position relative to case start
+  const newColSpan = Math.max(1, mouseCol - resizingCaseStart.value.col + 1)
+  const newRowSpan = Math.max(1, mouseRow - resizingCaseStart.value.row + 1)
+
+  // Check if valid
+  const isValid = isValidCaseResize(resizingCaseStart.value.col, resizingCaseStart.value.row, newColSpan, newRowSpan)
+
+  resizePreview.value = {
+    colSpan: newColSpan,
+    rowSpan: newRowSpan,
+    isValid
+  }
+}
+
+function handleResizeEnd() {
+  document.removeEventListener('mousemove', handleResizeMove)
+  document.removeEventListener('mouseup', handleResizeEnd)
+
+  if (resizingCaseId.value && resizePreview.value?.isValid) {
+    emit('case-resize', resizingCaseId.value, resizePreview.value.colSpan, resizePreview.value.rowSpan)
+  }
+
+  isResizingCase.value = false
+  resizingCaseId.value = null
+  resizePreview.value = null
+}
+
+function isValidCaseResize(col: number, row: number, colSpan: number, rowSpan: number): boolean {
+  // Check right boundary
+  if (col + colSpan - 1 > props.gridColumns) return false
+
+  // Check for collisions with other cases (excluding the one being resized)
+  for (const c of props.cases) {
+    if (c.id === resizingCaseId.value) continue
+
+    const xOverlap = col < c.gridColumnStart + c.gridColumnSpan &&
+                     col + colSpan > c.gridColumnStart
+    const yOverlap = row < c.gridRowStart + c.gridRowSpan &&
+                     row + rowSpan > c.gridRowStart
+
+    if (xOverlap && yOverlap) return false
+  }
+
+  return true
+}
+
+// Cleanup resize listeners on unmount
+onUnmounted(() => {
+  document.removeEventListener('mousemove', handleResizeMove)
+  document.removeEventListener('mouseup', handleResizeEnd)
+})
 
 // Check if a position is valid for dropping a case
 function isValidCaseDropPosition(col: number, row: number): boolean {
@@ -181,7 +287,10 @@ function handleWallDrop(event: DragEvent) {
     <StorageCase
       v-for="caseData in cases"
       :key="caseData.id"
-      :class="{ 'is-being-dragged': isDraggingCase && caseData.id === draggingCaseId }"
+      :class="{
+        'is-being-dragged': isDraggingCase && caseData.id === draggingCaseId,
+        'is-being-resized': isResizingCase && caseData.id === resizingCaseId
+      }"
       :case-data="caseData"
       :highlighted-drawer-ids="searchStore.highlightedDrawerIds"
       @click="emit('case-click', caseData)"
@@ -190,6 +299,7 @@ function handleWallDrop(event: DragEvent) {
       @edit-case="emit('edit-case', $event)"
       @case-drag-start="handleCaseDragStart"
       @case-drag-end="handleCaseDragEnd"
+      @resize-start="handleResizeStart"
     />
 
     <div v-if="!cases.length" class="wall-empty">
@@ -207,6 +317,19 @@ function handleWallDrop(event: DragEvent) {
         '--preview-row': previewPosition.row,
         '--preview-col-span': draggingCaseSize.columnSpan,
         '--preview-row-span': draggingCaseSize.rowSpan
+      }"
+    />
+
+    <!-- Resize preview for case resizing -->
+    <div
+      v-if="resizePreview && resizingCaseId"
+      class="case-resize-preview"
+      :class="{ 'is-valid': resizePreview.isValid, 'is-invalid': !resizePreview.isValid }"
+      :style="{
+        '--preview-col': resizingCaseStart.col,
+        '--preview-row': resizingCaseStart.row,
+        '--preview-col-span': resizePreview.colSpan,
+        '--preview-row-span': resizePreview.rowSpan
       }"
     />
 
@@ -294,6 +417,33 @@ function handleWallDrop(event: DragEvent) {
 .case-drop-preview.is-invalid {
   border-color: var(--color-danger);
   background: rgba(231, 76, 60, 0.15);
+}
+
+/* Resize preview */
+.case-resize-preview {
+  grid-column: var(--preview-col) / span var(--preview-col-span);
+  grid-row: var(--preview-row) / span var(--preview-row-span);
+  border: 3px dashed var(--color-primary);
+  border-radius: var(--radius-md);
+  background: rgba(52, 152, 219, 0.15);
+  pointer-events: none;
+  z-index: 50;
+  transition: grid-column 0.05s ease, grid-row 0.05s ease;
+}
+
+.case-resize-preview.is-valid {
+  border-color: var(--color-success);
+  background: rgba(39, 174, 96, 0.15);
+}
+
+.case-resize-preview.is-invalid {
+  border-color: var(--color-danger);
+  background: rgba(231, 76, 60, 0.15);
+}
+
+/* Case being resized - dim slightly */
+.is-being-resized {
+  opacity: 0.6;
 }
 
 /* Overlay to capture drop events during case dragging */
