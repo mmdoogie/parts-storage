@@ -135,18 +135,6 @@ function cleanupSSE() {
   eventSource = null
 }
 
-// Refresh wall data when tab regains focus (fallback for SSE)
-let lastFocusRefresh = Date.now()
-const FOCUS_REFRESH_INTERVAL = 5000 // Don't refresh more than once every 5 seconds
-
-function handleWindowFocus() {
-  const now = Date.now()
-  if (now - lastFocusRefresh > FOCUS_REFRESH_INTERVAL && wallStore.currentWall) {
-    lastFocusRefresh = now
-    refreshWall()
-  }
-}
-
 onMounted(async () => {
   await wallStore.fetchWalls()
   if (wallStore.walls.length > 0) {
@@ -158,14 +146,10 @@ onMounted(async () => {
 
   // Setup SSE for real-time updates
   setupSSE()
-
-  // Add focus listener as fallback
-  window.addEventListener('focus', handleWindowFocus)
 })
 
 onUnmounted(() => {
   cleanupSSE()
-  window.removeEventListener('focus', handleWindowFocus)
 })
 
 const cases = computed(() => wallStore.currentWall?.cases || [])
