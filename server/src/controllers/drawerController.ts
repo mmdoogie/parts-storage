@@ -199,6 +199,32 @@ export function updateDrawer(req: Request, res: Response, next: NextFunction) {
     const dr = drawerRow as Record<string, unknown>
     const drawer = toCamelCase<Drawer>(dr)
 
+    // Get drawer categories
+    const categoryRows = db.prepare(`
+      SELECT c.* FROM categories c
+      JOIN drawer_categories dc ON c.id = dc.category_id
+      WHERE dc.drawer_id = ?
+    `).all(id)
+    const categories = categoryRows.map(c => toCamelCase<Category>(c as Record<string, unknown>))
+
+    // Get parts with links
+    const partRows = db.prepare(`
+      SELECT * FROM parts WHERE drawer_id = ? ORDER BY sort_order, name
+    `).all(id)
+
+    const parts = partRows.map(partRow => {
+      const part = toCamelCase<Part>(partRow as Record<string, unknown>)
+
+      const linkRows = db.prepare(`
+        SELECT * FROM part_links WHERE part_id = ? ORDER BY sort_order
+      `).all(part.id)
+
+      return {
+        ...part,
+        links: linkRows.map(l => toCamelCase<PartLink>(l as Record<string, unknown>))
+      }
+    })
+
     // Broadcast event
     const wallId = getWallIdFromDrawer(db, drawer.id)
     if (wallId) {
@@ -214,7 +240,9 @@ export function updateDrawer(req: Request, res: Response, next: NextFunction) {
           name: dr.size_name as string,
           widthUnits: dr.width_units as number,
           heightUnits: dr.height_units as number
-        }
+        },
+        categories,
+        parts
       }
     })
   } catch (err) {
