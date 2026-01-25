@@ -39,6 +39,7 @@ npm-debug.log*
 
 # Python
 .python-version
+__pycache__
 
 # Images
 *.png
