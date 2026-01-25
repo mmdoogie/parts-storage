@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useWallStore, useDrawerStore, useCategoryStore, useSearchStore, useCaseStore } from '@/stores'
+import { lastLocalMutation, markLocalMutation } from '@/composables/useDragDrop'
 import * as caseService from '@/services/caseService'
 import type { LayoutTemplate, Case } from '@/types'
 import StorageWall from '@/components/wall/StorageWall.vue'
@@ -75,6 +76,7 @@ const editingCaseData = ref<Case | null>(null)
 let eventSource: EventSource | null = null
 let refreshDebounceTimer: ReturnType<typeof setTimeout> | null = null
 const REFRESH_DEBOUNCE = 500 // Wait for events to settle before refreshing
+const LOCAL_MUTATION_COOLDOWN = 1000 // Ignore SSE events for 1s after local mutation
 
 function scheduleRefresh() {
   // Clear any pending refresh
@@ -101,6 +103,12 @@ function setupSSE() {
 
       // Skip connected message
       if (data.type === 'connected') return
+
+      // Skip part events - they don't affect wall display and are handled locally in drawer modal
+      if (data.type?.startsWith('part:')) return
+
+      // Skip events during cooldown after local mutations (likely our own events)
+      if (Date.now() - lastLocalMutation.value < LOCAL_MUTATION_COOLDOWN) return
 
       // Check if event is relevant to current wall
       if (wallStore.currentWall && data.wallId === wallStore.currentWall.id) {
@@ -252,16 +260,26 @@ async function handleHighlightDrawer(drawerId: number, wallId: number) {
 }
 
 function closeDrawer() {
+  // Sync drawer changes to wall store before closing
+  if (openDrawerId.value) {
+    const updatedDrawer = drawerStore.drawers.get(openDrawerId.value)
+    if (updatedDrawer) {
+      wallStore.updateDrawerInCase(updatedDrawer.caseId, updatedDrawer.id, {
+        name: updatedDrawer.name,
+        color: updatedDrawer.color
+      })
+      markLocalMutation()
+    }
+  }
   openDrawerId.value = null
   drawerStore.setOpenDrawer(null)
-  // Refresh wall to get updated drawer info
-  refreshWall()
 }
 
 async function addCase() {
   if (!wallStore.currentWall) return
 
   loading.value = true
+  markLocalMutation() // Mark before API call so SSE events are ignored
   try {
     const newCase = await caseService.createCase({
       wallId: wallStore.currentWall.id,
@@ -277,10 +295,12 @@ async function addCase() {
     // Apply template if selected
     if (selectedTemplate.value) {
       await caseService.applyTemplate(newCase.id, selectedTemplate.value)
+      // Template creates drawers server-side, need to refresh just this case
+      await refreshWall()
+    } else {
+      // No template, add case locally with empty drawers
+      wallStore.addCaseToWall({ ...newCase, drawers: [] })
     }
-
-    // Refresh wall
-    await refreshWall()
 
     wallStore.closeAddCaseModal()
     newCaseName.value = 'New Case'
@@ -344,6 +364,7 @@ async function createDrawer() {
   if (!addDrawerCaseId.value || !addDrawerSizeId.value) return
 
   addDrawerLoading.value = true
+  markLocalMutation() // Mark before API call so SSE events are ignored
   try {
     const newDrawer = await drawerStore.createDrawer({
       caseId: addDrawerCaseId.value,
@@ -353,8 +374,8 @@ async function createDrawer() {
       name: addDrawerName.value.trim() || undefined
     })
 
-    // Refresh wall to get updated case with new drawer
-    await refreshWall()
+    // Add drawer to case locally instead of refreshing wall
+    wallStore.addDrawerToCase(addDrawerCaseId.value, newDrawer)
 
     closeAddDrawerModal()
 
@@ -470,27 +491,24 @@ function closeEditCaseModal() {
 }
 
 async function handleCaseUpdated(updatedCase: Case) {
-  // Update the case in the wall store
+  // Update the case in the wall store locally
   wallStore.updateCaseInWall(updatedCase)
-  // Refresh the wall to get the complete updated data
-  await refreshWall()
 }
 
 async function handleCaseDeleted(caseId: number) {
-  // Remove the case from the wall store
+  // Remove the case from the wall store locally
   wallStore.removeCaseFromWall(caseId)
-  // Refresh the wall to get the updated data
-  await refreshWall()
 }
 
 async function handleCaseMove(caseId: number, newColumn: number, newRow: number) {
+  markLocalMutation() // Mark before API call so SSE events are ignored
   try {
-    await caseService.updateCasePosition(caseId, {
+    const updatedCase = await caseService.updateCasePosition(caseId, {
       gridColumnStart: newColumn,
       gridRowStart: newRow
     })
-    // Refresh the wall to get the updated positions
-    await refreshWall()
+    // Update locally instead of refreshing wall
+    wallStore.updateCaseInWall(updatedCase)
   } catch (e) {
     console.error('Failed to move case:', e)
   }

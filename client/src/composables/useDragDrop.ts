@@ -5,6 +5,12 @@ import type { DragData, Case } from '@/types'
 
 // Global drag state (shared across all components)
 const isDragging = ref(false)
+
+// Shared mutation timestamp for SSE cooldown (exported for WallView to use)
+export const lastLocalMutation = ref(0)
+export function markLocalMutation() {
+  lastLocalMutation.value = Date.now()
+}
 const dragData = ref<DragData | null>(null)
 const validDropTargets = ref<Set<string>>(new Set())
 const dragOverTarget = ref<string | null>(null)
@@ -187,16 +193,28 @@ export function useDragDrop() {
       return false
     }
 
+    const sourceCaseId = dragData.value.sourceCase
+    const drawerId = dragData.value.id
+
+    markLocalMutation() // Mark before API call so SSE events are ignored
     try {
-      await drawerService.moveDrawer(dragData.value.id, {
+      const movedDrawer = await drawerService.moveDrawer(drawerId, {
         targetCaseId: caseId,
         gridColumn: col,
         gridRow: row
       })
 
-      // Refresh the wall data to reflect the change
-      if (wallStore.currentWall) {
-        await wallStore.fetchWall(wallStore.currentWall.id)
+      // Update wall locally instead of full refresh
+      if (sourceCaseId && sourceCaseId !== caseId) {
+        // Moving to different case - remove from source, add to target
+        wallStore.removeDrawerFromCase(sourceCaseId, drawerId)
+        wallStore.addDrawerToCase(caseId, movedDrawer)
+      } else {
+        // Moving within same case - update position
+        wallStore.updateDrawerInCase(caseId, drawerId, {
+          gridColumn: col,
+          gridRow: row
+        })
       }
 
       return true

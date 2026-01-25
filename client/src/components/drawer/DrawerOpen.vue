@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useDrawerStore, useCategoryStore } from '@/stores'
+import { useDrawerStore, useCategoryStore, useWallStore } from '@/stores'
+import { markLocalMutation } from '@/composables/useDragDrop'
 import * as partService from '@/services/partService'
 import * as drawerService from '@/services/drawerService'
 import type { Part } from '@/types'
@@ -22,6 +23,7 @@ const emit = defineEmits<{
 
 const drawerStore = useDrawerStore()
 const categoryStore = useCategoryStore()
+const wallStore = useWallStore()
 
 const isAddingPart = ref(false)
 const newPartName = ref('')
@@ -69,6 +71,7 @@ async function saveDrawerName() {
   if (!drawer.value || !isNameModified.value) return
 
   isSavingName.value = true
+  markLocalMutation() // Mark before API call so SSE events are ignored
   try {
     await drawerStore.updateDrawer(drawer.value.id, {
       name: editingDrawerName.value.trim() || null
@@ -92,6 +95,7 @@ async function clearDrawerName() {
   if (!drawer.value) return
 
   isSavingName.value = true
+  markLocalMutation() // Mark before API call so SSE events are ignored
   try {
     await drawerStore.updateDrawer(drawer.value.id, { name: null })
     editingDrawerName.value = ''
@@ -113,8 +117,8 @@ async function addPart() {
       notes: newPartNotes.value.trim() || undefined
     })
 
-    // Refresh drawer to get updated parts
-    await drawerStore.fetchDrawer(props.drawerId)
+    // Update local store instead of refetching
+    drawerStore.addPartToDrawer(props.drawerId, part)
 
     newPartName.value = ''
     newPartNotes.value = ''
@@ -131,7 +135,8 @@ async function deletePart(partId: number) {
 
   try {
     await partService.deletePart(partId)
-    await drawerStore.fetchDrawer(props.drawerId)
+    // Update local store instead of refetching
+    drawerStore.removePartFromDrawer(props.drawerId, partId)
   } catch (e) {
     console.error('Failed to delete part:', e)
   }
@@ -141,8 +146,9 @@ async function updatePart(partId: number, data: Partial<Part>) {
   if (!props.drawerId) return
 
   try {
-    await partService.updatePart(partId, data)
-    await drawerStore.fetchDrawer(props.drawerId)
+    const updatedPart = await partService.updatePart(partId, data)
+    // Update local store instead of refetching
+    drawerStore.updatePartInDrawer(props.drawerId, partId, updatedPart)
   } catch (e) {
     console.error('Failed to update part:', e)
   }
@@ -152,19 +158,21 @@ async function addLink(partId: number, url: string, title?: string) {
   if (!props.drawerId) return
 
   try {
-    await partService.addLinkToPart(partId, { url, title })
-    await drawerStore.fetchDrawer(props.drawerId)
+    const link = await partService.addLinkToPart(partId, { url, title })
+    // Update local store instead of refetching
+    drawerStore.addLinkToPart(props.drawerId, partId, link)
   } catch (e) {
     console.error('Failed to add link:', e)
   }
 }
 
-async function deleteLink(linkId: number) {
+async function deleteLink(linkId: number, partId: number) {
   if (!props.drawerId) return
 
   try {
     await partService.deleteLink(linkId)
-    await drawerStore.fetchDrawer(props.drawerId)
+    // Update local store instead of refetching
+    drawerStore.removeLinkFromPart(props.drawerId, partId, linkId)
   } catch (e) {
     console.error('Failed to delete link:', e)
   }
@@ -173,9 +181,21 @@ async function deleteLink(linkId: number) {
 async function addCategory(categoryId: number) {
   if (!props.drawerId) return
 
+  markLocalMutation() // Mark before API call so SSE events are ignored
   try {
     await drawerService.addCategoryToDrawer(props.drawerId, categoryId)
-    await drawerStore.fetchDrawer(props.drawerId)
+    // Find the added category and update local store
+    const addedCategory = categoryStore.categories.find(c => c.id === categoryId)
+    if (addedCategory) {
+      drawerStore.addCategoryToDrawerLocal(props.drawerId, addedCategory)
+      // Also update wall store so drawer front shows the change
+      const drawerData = drawerStore.drawers.get(props.drawerId)
+      if (drawerData) {
+        wallStore.updateDrawerInCase(drawerData.caseId, props.drawerId, {
+          categories: drawerData.categories
+        })
+      }
+    }
     showCategoryPicker.value = false
   } catch (e) {
     console.error('Failed to add category:', e)
@@ -185,9 +205,18 @@ async function addCategory(categoryId: number) {
 async function removeCategory(categoryId: number) {
   if (!props.drawerId) return
 
+  markLocalMutation() // Mark before API call so SSE events are ignored
   try {
     await drawerService.removeCategoryFromDrawer(props.drawerId, categoryId)
-    await drawerStore.fetchDrawer(props.drawerId)
+    // Update local store instead of refetching
+    drawerStore.removeCategoryFromDrawerLocal(props.drawerId, categoryId)
+    // Also update wall store so drawer front shows the change
+    const drawerData = drawerStore.drawers.get(props.drawerId)
+    if (drawerData) {
+      wallStore.updateDrawerInCase(drawerData.caseId, props.drawerId, {
+        categories: drawerData.categories
+      })
+    }
   } catch (e) {
     console.error('Failed to remove category:', e)
   }
@@ -201,8 +230,14 @@ function getAvailableCategories() {
 async function deleteDrawer() {
   if (!props.drawerId) return
   deleteLoading.value = true
+  markLocalMutation() // Mark before API call so SSE events are ignored
   try {
+    const drawerData = drawerStore.drawers.get(props.drawerId)
     await drawerStore.deleteDrawer(props.drawerId)
+    // Also remove from wall store
+    if (drawerData) {
+      wallStore.removeDrawerFromCase(drawerData.caseId, props.drawerId)
+    }
     emit('close')
   } catch (e) {
     console.error('Failed to delete drawer:', e)
@@ -387,7 +422,7 @@ async function deleteDrawer() {
             @update="(data) => updatePart(part.id, data)"
             @delete="deletePart(part.id)"
             @add-link="({ url, title }) => addLink(part.id, url, title)"
-            @delete-link="deleteLink"
+            @delete-link="(linkId) => deleteLink(linkId, part.id)"
           />
         </div>
 

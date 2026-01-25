@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import type { Case } from '@/types'
 import { useCaseStore } from '@/stores'
+import { markLocalMutation } from '@/composables/useDragDrop'
 import BaseModal from '@/components/base/BaseModal.vue'
 import BaseInput from '@/components/base/BaseInput.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
@@ -127,6 +128,7 @@ async function saveChanges() {
 
   saving.value = true
   errorMessage.value = ''
+  markLocalMutation() // Mark before API call so SSE events are ignored
 
   try {
     const updatedCase = await caseStore.updateCase(props.caseData.id, {
@@ -154,6 +156,7 @@ async function handleDelete() {
 
   deleting.value = true
   errorMessage.value = ''
+  markLocalMutation() // Mark before API call so SSE events are ignored
 
   try {
     await caseStore.deleteCase(props.caseData.id)

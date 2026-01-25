@@ -80,11 +80,16 @@ export const useWallStore = defineStore('wall', () => {
   }
 
   // Update a case within the current wall (for optimistic updates)
+  // Preserves drawers array if not provided in the update
   function updateCaseInWall(caseData: Case) {
     if (!currentWall.value?.cases) return
     const index = currentWall.value.cases.findIndex(c => c.id === caseData.id)
     if (index !== -1) {
-      currentWall.value.cases[index] = caseData
+      const existingDrawers = currentWall.value.cases[index].drawers
+      currentWall.value.cases[index] = {
+        ...caseData,
+        drawers: caseData.drawers ?? existingDrawers
+      }
     }
   }
 
@@ -101,6 +106,34 @@ export const useWallStore = defineStore('wall', () => {
   function removeCaseFromWall(caseId: number) {
     if (!currentWall.value?.cases) return
     currentWall.value.cases = currentWall.value.cases.filter(c => c.id !== caseId)
+  }
+
+  // Add a drawer to a case within the current wall
+  function addDrawerToCase(caseId: number, drawer: any) {
+    if (!currentWall.value?.cases) return
+    const caseData = currentWall.value.cases.find(c => c.id === caseId)
+    if (!caseData) return
+    if (!caseData.drawers) caseData.drawers = []
+    caseData.drawers.push(drawer)
+  }
+
+  // Remove a drawer from a case within the current wall
+  function removeDrawerFromCase(caseId: number, drawerId: number) {
+    if (!currentWall.value?.cases) return
+    const caseData = currentWall.value.cases.find(c => c.id === caseId)
+    if (!caseData?.drawers) return
+    caseData.drawers = caseData.drawers.filter(d => d.id !== drawerId)
+  }
+
+  // Update a drawer within a case in the current wall
+  function updateDrawerInCase(caseId: number, drawerId: number, data: any) {
+    if (!currentWall.value?.cases) return
+    const caseData = currentWall.value.cases.find(c => c.id === caseId)
+    if (!caseData?.drawers) return
+    const index = caseData.drawers.findIndex(d => d.id === drawerId)
+    if (index !== -1) {
+      caseData.drawers[index] = { ...caseData.drawers[index], ...data }
+    }
   }
 
   const hasWalls = computed(() => walls.value.length > 0)
@@ -128,6 +161,9 @@ export const useWallStore = defineStore('wall', () => {
     updateCaseInWall,
     addCaseToWall,
     removeCaseFromWall,
+    addDrawerToCase,
+    removeDrawerFromCase,
+    updateDrawerInCase,
     openAddCaseModal,
     closeAddCaseModal
   }

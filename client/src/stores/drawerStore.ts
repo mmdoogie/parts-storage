@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import * as drawerService from '@/services/drawerService'
-import type { Drawer, DrawerSize } from '@/types'
+import type { Drawer, DrawerSize, Part, PartLink, Category } from '@/types'
 
 export const useDrawerStore = defineStore('drawer', () => {
   const drawers = ref<Map<number, Drawer>>(new Map())
@@ -121,6 +121,65 @@ export const useDrawerStore = defineStore('drawer', () => {
     drawers.value.set(drawer.id, drawer)
   }
 
+  // Local update methods for parts (avoid full drawer refetch)
+  function addPartToDrawer(drawerId: number, part: Part) {
+    const drawer = drawers.value.get(drawerId)
+    if (!drawer) return
+    if (!drawer.parts) drawer.parts = []
+    drawer.parts.push(part)
+    if (drawer.partCount !== undefined) drawer.partCount++
+  }
+
+  function updatePartInDrawer(drawerId: number, partId: number, data: Partial<Part>) {
+    const drawer = drawers.value.get(drawerId)
+    if (!drawer?.parts) return
+    const index = drawer.parts.findIndex(p => p.id === partId)
+    if (index !== -1) {
+      drawer.parts[index] = { ...drawer.parts[index], ...data }
+    }
+  }
+
+  function removePartFromDrawer(drawerId: number, partId: number) {
+    const drawer = drawers.value.get(drawerId)
+    if (!drawer?.parts) return
+    drawer.parts = drawer.parts.filter(p => p.id !== partId)
+    if (drawer.partCount !== undefined) drawer.partCount--
+  }
+
+  // Local update methods for part links
+  function addLinkToPart(drawerId: number, partId: number, link: PartLink) {
+    const drawer = drawers.value.get(drawerId)
+    if (!drawer?.parts) return
+    const part = drawer.parts.find(p => p.id === partId)
+    if (!part) return
+    if (!part.links) part.links = []
+    part.links.push(link)
+  }
+
+  function removeLinkFromPart(drawerId: number, partId: number, linkId: number) {
+    const drawer = drawers.value.get(drawerId)
+    if (!drawer?.parts) return
+    const part = drawer.parts.find(p => p.id === partId)
+    if (!part?.links) return
+    part.links = part.links.filter(l => l.id !== linkId)
+  }
+
+  // Local update methods for drawer categories
+  function addCategoryToDrawerLocal(drawerId: number, category: Category) {
+    const drawer = drawers.value.get(drawerId)
+    if (!drawer) return
+    if (!drawer.categories) drawer.categories = []
+    if (!drawer.categories.some(c => c.id === category.id)) {
+      drawer.categories.push(category)
+    }
+  }
+
+  function removeCategoryFromDrawerLocal(drawerId: number, categoryId: number) {
+    const drawer = drawers.value.get(drawerId)
+    if (!drawer?.categories) return
+    drawer.categories = drawer.categories.filter(c => c.id !== categoryId)
+  }
+
   const openDrawer = computed(() =>
     openDrawerId.value ? drawers.value.get(openDrawerId.value) : null
   )
@@ -147,6 +206,13 @@ export const useDrawerStore = defineStore('drawer', () => {
     moveDrawer,
     deleteDrawer,
     setOpenDrawer,
-    setDrawer
+    setDrawer,
+    addPartToDrawer,
+    updatePartInDrawer,
+    removePartFromDrawer,
+    addLinkToPart,
+    removeLinkFromPart,
+    addCategoryToDrawerLocal,
+    removeCategoryFromDrawerLocal
   }
 })
