@@ -411,6 +411,13 @@ export function addCategoryToDrawer(req: Request, res: Response, next: NextFunct
 
     const categories = categoryRows.map(c => toCamelCase<Category>(c as Record<string, unknown>))
 
+    // Broadcast event
+    const drawerId = parseInt(id)
+    const wallId = getWallIdFromDrawer(db, drawerId)
+    if (wallId) {
+      storageEvents.broadcast({ type: 'drawer:updated', wallId, drawerId })
+    }
+
     res.json({ success: true, data: categories })
   } catch (err) {
     next(err)
@@ -421,11 +428,18 @@ export function removeCategoryFromDrawer(req: Request, res: Response, next: Next
   try {
     const db = getDb()
     const { id, categoryId } = req.params
+    const drawerId = parseInt(id)
 
     db.prepare(`
       DELETE FROM drawer_categories
       WHERE drawer_id = ? AND category_id = ?
     `).run(id, categoryId)
+
+    // Broadcast event
+    const wallId = getWallIdFromDrawer(db, drawerId)
+    if (wallId) {
+      storageEvents.broadcast({ type: 'drawer:updated', wallId, drawerId })
+    }
 
     res.json({ success: true, data: null })
   } catch (err) {
