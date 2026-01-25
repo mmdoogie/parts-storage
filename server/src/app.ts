@@ -35,7 +35,7 @@ app.use('/api/v1', routes)
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
-  const clientPath = join(__dirname, '../../client/dist')
+  const clientPath = process.env.STATIC_PATH || join(__dirname, '../../client/dist')
   app.use(express.static(clientPath))
   app.get('*', (_req, res) => {
     res.sendFile(join(clientPath, 'index.html'))

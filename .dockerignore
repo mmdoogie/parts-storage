@@ -1,0 +1,36 @@
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+client/dist
+server/dist
+mcp-server/dist
+
+# Development files
+*.log
+.env
+.env.local
+*.db
+*.db-wal
+*.db-shm
+
+# IDE and OS files
+.idea
+.vscode
+.DS_Store
+*.swp
+*.swo
+
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+TODO.md
+docs
+
+# Development tools
+tools
+*.bak

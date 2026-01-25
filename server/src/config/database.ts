@@ -5,7 +5,7 @@ import { dirname, join } from 'path'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-const DB_PATH = join(__dirname, '../../data/storage.db')
+const DB_PATH = process.env.DATABASE_PATH || join(__dirname, '../../data/storage.db')
 
 let db: Database.Database | null = null
 
