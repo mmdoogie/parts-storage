@@ -14,6 +14,7 @@ const searchBarRef = ref<InstanceType<typeof SearchBar> | null>(null)
 
 const walls = computed(() => wallStore.walls)
 const currentWall = computed(() => wallStore.currentWall)
+const isLocked = computed(() => settingsStore.editLocked)
 
 function toggleWallDropdown() {
   isWallDropdownOpen.value = !isWallDropdownOpen.value
@@ -103,12 +104,33 @@ async function createNewWall() {
       </div>
       <SearchBar ref="searchBarRef" v-model="searchStore.query" class="header-search" />
       <div class="header-actions">
-        <BaseButton variant="primary" size="sm" @click="wallStore.openAddCaseModal()">
+        <BaseButton
+          variant="primary"
+          size="sm"
+          :disabled="isLocked"
+          @click="wallStore.openAddCaseModal()"
+        >
           <svg class="button-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 5v14M5 12h14" />
           </svg>
           Add Case
         </BaseButton>
+        <button
+          class="lock-button"
+          :class="{ 'is-locked': isLocked }"
+          @click="settingsStore.toggleEditLock()"
+          :title="isLocked ? 'Unlock editing' : 'Lock editing'"
+          :aria-label="isLocked ? 'Unlock editing' : 'Lock editing'"
+        >
+          <svg v-if="isLocked" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+          </svg>
+        </button>
         <button
           class="settings-button"
           @click="settingsStore.openSettingsModal()"
@@ -267,6 +289,7 @@ async function createNewWall() {
   margin-right: var(--spacing-xs);
 }
 
+.lock-button,
 .settings-button {
   padding: var(--spacing-sm);
   color: white;
@@ -275,14 +298,21 @@ async function createNewWall() {
   opacity: 0.8;
 }
 
+.lock-button:hover,
 .settings-button:hover {
   opacity: 1;
   background: rgba(255, 255, 255, 0.1);
 }
 
+.lock-button svg,
 .settings-button svg {
   width: 24px;
   height: 24px;
+}
+
+.lock-button.is-locked {
+  color: var(--color-warning, #f39c12);
+  opacity: 1;
 }
 
 @media (max-width: 600px) {

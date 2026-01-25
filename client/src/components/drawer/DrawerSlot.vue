@@ -14,6 +14,7 @@ interface Props {
   caseColumns?: number
   caseRows?: number
   caseColor?: string
+  locked?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -21,7 +22,8 @@ const props = withDefaults(defineProps<Props>(), {
   isCovered: false,
   caseColumns: 4,
   caseRows: 6,
-  caseColor: '#8B7355'
+  caseColor: '#8B7355',
+  locked: false
 })
 
 const emit = defineEmits<{
@@ -114,7 +116,7 @@ const drawerExtentStyle = computed(() => {
 function handleClick() {
   if (props.drawer) {
     emit('click')
-  } else {
+  } else if (!props.locked) {
     emit('add-drawer', props.column, props.row)
   }
 }
@@ -170,9 +172,9 @@ async function handleDropEvent(event: DragEvent) {
       :highlighted="highlighted"
       :case-color="caseColor"
     />
-    <div v-else class="skeu-empty-slot">
-      <span v-if="!isDragging">+</span>
-      <span v-else-if="isValidDropTarget" class="drop-indicator">
+    <div v-else class="skeu-empty-slot" :class="{ 'is-locked': locked }">
+      <span v-if="!isDragging && !locked">+</span>
+      <span v-else-if="isValidDropTarget && !locked" class="drop-indicator">
         {{ draggedDrawerSize.width > 1 || draggedDrawerSize.height > 1
           ? `${draggedDrawerSize.width}x${draggedDrawerSize.height}`
           : 'Drop here' }}
@@ -240,7 +242,13 @@ async function handleDropEvent(event: DragEvent) {
   background: rgba(0, 0, 0, 0.05);
 }
 
-.drawer-slot:hover .skeu-empty-slot {
+.skeu-empty-slot.is-locked {
+  cursor: default;
+  border-style: solid;
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.drawer-slot:hover .skeu-empty-slot:not(.is-locked) {
   opacity: 0.5;
 }
 

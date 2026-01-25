@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, onUnmounted } from 'vue'
 import type { Case } from '@/types'
-import { useSearchStore } from '@/stores'
+import { useSearchStore, useSettingsStore } from '@/stores'
 import StorageCase from '@/components/case/StorageCase.vue'
+
+const settingsStore = useSettingsStore()
+const isLocked = computed(() => settingsStore.editLocked)
 
 // Reference to the wall element for consistent position calculations
 const wallRef = ref<HTMLElement | null>(null)
@@ -50,6 +53,11 @@ const gridStyle = computed(() => ({
 }))
 
 function handleCaseDragStart(caseId: number, event: DragEvent) {
+  // Don't allow dragging when locked
+  if (isLocked.value) {
+    event.preventDefault()
+    return
+  }
   isDraggingCase.value = true
   draggingCaseId.value = caseId
   const caseData = props.cases.find(c => c.id === caseId)
@@ -72,6 +80,9 @@ function handleCaseDragEnd() {
 
 // Resize handlers
 function handleResizeStart(caseId: number, event: MouseEvent) {
+  // Don't allow resizing when locked
+  if (isLocked.value) return
+
   const caseData = props.cases.find(c => c.id === caseId)
   if (!caseData) return
 
@@ -293,6 +304,7 @@ function handleWallDrop(event: DragEvent) {
       }"
       :case-data="caseData"
       :highlighted-drawer-ids="searchStore.highlightedDrawerIds"
+      :locked="isLocked"
       @click="emit('case-click', caseData)"
       @drawer-click="emit('drawer-click', $event)"
       @add-drawer="(caseId, col, row) => emit('add-drawer', caseId, col, row)"

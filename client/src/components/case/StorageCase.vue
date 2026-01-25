@@ -6,10 +6,12 @@ import DrawerSlot from '@/components/drawer/DrawerSlot.vue'
 interface Props {
   caseData: Case
   highlightedDrawerIds?: Set<number>
+  locked?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  highlightedDrawerIds: () => new Set()
+  highlightedDrawerIds: () => new Set(),
+  locked: false
 })
 
 const emit = defineEmits<{
@@ -108,12 +110,14 @@ function handleResizeStart(event: MouseEvent) {
   >
     <header
       class="case-header"
-      draggable="true"
+      :class="{ 'is-locked': locked }"
+      :draggable="!locked"
       @dragstart="handleCaseDragStart"
       @dragend="handleCaseDragEnd"
     >
       <h3 class="case-title">{{ caseData.name }}</h3>
       <button
+        v-if="!locked"
         class="case-settings-btn"
         @click.stop="emit('edit-case', caseData.id)"
         @mousedown.stop
@@ -137,6 +141,7 @@ function handleResizeStart(event: MouseEvent) {
             :highlighted="getDrawerAt(col, row) ? isHighlighted(getDrawerAt(col, row)!.id) : false"
             :is-covered="isSlotCovered(col, row)"
             :case-color="caseData.color"
+            :locked="locked"
             @click="getDrawerAt(col, row) && emit('drawer-click', getDrawerAt(col, row)!.id)"
             @add-drawer="(column, row) => emit('add-drawer', caseData.id, column, row)"
           />
@@ -145,6 +150,7 @@ function handleResizeStart(event: MouseEvent) {
     </div>
     <!-- Resize handle -->
     <div
+      v-if="!locked"
       class="resize-handle"
       @mousedown="handleResizeStart"
       title="Drag to resize"
@@ -202,7 +208,11 @@ function handleResizeStart(event: MouseEvent) {
   cursor: grab;
 }
 
-.case-header:active {
+.case-header.is-locked {
+  cursor: default;
+}
+
+.case-header:active:not(.is-locked) {
   cursor: grabbing;
 }
 

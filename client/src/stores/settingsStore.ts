@@ -10,6 +10,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const settingsModalOpen = ref(false)
+  const editLocked = ref(true) // Default to locked to prevent accidental edits
 
   // Getters
   const getSizeById = computed(() => (id: number) =>
@@ -188,6 +189,15 @@ export const useSettingsStore = defineStore('settings', () => {
     settingsModalOpen.value = false
   }
 
+  // Edit lock control
+  function toggleEditLock() {
+    editLocked.value = !editLocked.value
+  }
+
+  function setEditLocked(locked: boolean) {
+    editLocked.value = locked
+  }
+
   // Initialize all settings data
   async function initializeSettings() {
     loading.value = true
@@ -212,6 +222,7 @@ export const useSettingsStore = defineStore('settings', () => {
     loading,
     error,
     settingsModalOpen,
+    editLocked,
     // Getters
     getSizeById,
     getSizeByName,
@@ -231,6 +242,9 @@ export const useSettingsStore = defineStore('settings', () => {
     // Modal control
     openSettingsModal,
     closeSettingsModal,
+    // Edit lock control
+    toggleEditLock,
+    setEditLocked,
     // Initialize
     initializeSettings
   }
