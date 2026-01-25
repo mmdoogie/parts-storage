@@ -508,7 +508,6 @@ async function handleCaseResize(caseId: number, newColumnSpan: number, newRowSpa
       v-if="searchStore.isActive"
       :results="searchStore.results"
       :is-searching="searchStore.isSearching"
-      @select="handleDrawerClick"
       @highlight="handleHighlightDrawer"
     />
 

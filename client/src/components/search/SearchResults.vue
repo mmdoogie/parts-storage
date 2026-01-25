@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
 import type { SearchResult } from '@/types'
 import { useSearchStore } from '@/stores'
 
@@ -7,14 +8,15 @@ interface Props {
   isSearching: boolean
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
-  select: [drawerId: number]
   highlight: [drawerId: number, wallId: number]
 }>()
 
 const searchStore = useSearchStore()
+const resultsListRef = ref<HTMLElement | null>(null)
+const showNumbers = ref(false)
 
 function getResultIcon(type: string) {
   switch (type) {
@@ -25,11 +27,63 @@ function getResultIcon(type: string) {
   }
 }
 
-function handleHighlight(event: Event, drawerId: number, wallId: number) {
-  event.stopPropagation()
+function handleHighlight(event: Event | null, drawerId: number, wallId: number) {
+  event?.stopPropagation()
   searchStore.clearSearch()
   emit('highlight', drawerId, wallId)
 }
+
+function triggerHighlightByIndex(index: number) {
+  const result = props.results[index]
+  if (result) {
+    handleHighlight(null, result.path.drawerId, result.path.wallId)
+  }
+}
+
+function handleKeydown(event: KeyboardEvent) {
+  // Only handle when numbers are visible (focus is in results)
+  if (!showNumbers.value) return
+
+  // Handle 1-9 keys for quick highlight
+  const key = event.key
+  if (key >= '1' && key <= '9') {
+    const index = parseInt(key) - 1
+    if (index < props.results.length) {
+      event.preventDefault()
+      triggerHighlightByIndex(index)
+    }
+  }
+}
+
+function focus() {
+  resultsListRef.value?.focus()
+}
+
+function handleFocusIn(event: FocusEvent) {
+  // Only show numbers for keyboard focus, not mouse clicks
+  const target = event.target as HTMLElement
+  if (target.matches(':focus-visible')) {
+    showNumbers.value = true
+  }
+}
+
+function handleFocusOut(event: FocusEvent) {
+  // Check if focus is moving outside the results list
+  const relatedTarget = event.relatedTarget as HTMLElement | null
+  if (!resultsListRef.value?.contains(relatedTarget)) {
+    showNumbers.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown)
+})
+
+defineExpose({ focus })
 </script>
 
 <template>
@@ -46,13 +100,23 @@ function handleHighlight(event: Event, drawerId: number, wallId: number) {
       Searching...
     </div>
 
-    <div v-else-if="results.length" class="results-list">
+    <div
+      v-else-if="results.length"
+      ref="resultsListRef"
+      class="results-list"
+      tabindex="-1"
+      @focusin="handleFocusIn"
+      @focusout="handleFocusOut"
+    >
       <div
-        v-for="result in results"
+        v-for="(result, index) in results"
         :key="`${result.type}-${result.id}`"
         class="result-item"
-        @click="emit('select', result.path.drawerId)"
+        tabindex="0"
+        @click="handleHighlight(null, result.path.drawerId, result.path.wallId)"
+        @keydown.enter="handleHighlight(null, result.path.drawerId, result.path.wallId)"
       >
+        <span v-if="showNumbers && index < 9" class="result-number">{{ index + 1 }}</span>
         <span class="result-icon" :class="`result-icon--${result.type}`">
           {{ getResultIcon(result.type) }}
         </span>
@@ -65,17 +129,6 @@ function handleHighlight(event: Event, drawerId: number, wallId: number) {
             Matched in {{ result.matchedField }}: {{ result.matchedText }}
           </span>
         </div>
-        <button
-          class="highlight-button"
-          @click="handleHighlight($event, result.path.drawerId, result.path.wallId)"
-          title="Show on wall"
-          aria-label="Highlight drawer on wall"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8" />
-            <path d="M21 21l-4.35-4.35" />
-          </svg>
-        </button>
       </div>
     </div>
 
@@ -146,11 +199,33 @@ function handleHighlight(event: Event, drawerId: number, wallId: number) {
   border-radius: var(--radius-md);
   text-align: left;
   transition: all var(--transition-fast);
+  cursor: pointer;
+  outline: none;
 }
 
-.result-item:hover {
+.result-item:hover,
+.result-item:focus {
   background: rgba(0, 0, 0, 0.05);
 }
+
+.result-item:focus {
+  box-shadow: 0 0 0 2px var(--color-primary);
+}
+
+.result-number {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary);
+  color: white;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
 
 .result-icon {
   width: 32px;
@@ -200,38 +275,6 @@ function handleHighlight(event: Event, drawerId: number, wallId: number) {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   font-style: italic;
-}
-
-.highlight-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  margin-left: auto;
-  background: rgba(243, 156, 18, 0.1);
-  border: 1px solid rgba(243, 156, 18, 0.3);
-  border-radius: var(--radius-sm);
-  color: var(--color-warning);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  flex-shrink: 0;
-}
-
-.highlight-button:hover {
-  background: rgba(243, 156, 18, 0.2);
-  border-color: var(--color-warning);
-  transform: scale(1.05);
-}
-
-.highlight-button:active {
-  transform: scale(0.95);
-}
-
-.highlight-button svg {
-  width: 16px;
-  height: 16px;
 }
 
 .no-results {

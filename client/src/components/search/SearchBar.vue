@@ -45,6 +45,37 @@ function handleBlur() {
 }
 
 function handleKeydown(event: KeyboardEvent) {
+  // Handle Escape separately - it should always work
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    if (showSuggestions.value) {
+      // First Escape closes suggestions
+      isFocused.value = false
+      selectedIndex.value = -1
+    } else if (hasQuery.value) {
+      // Second Escape clears the search
+      clear()
+      inputRef.value?.blur()
+    } else {
+      // No query, just blur
+      inputRef.value?.blur()
+    }
+    return
+  }
+
+  // Handle Tab - close suggestions and jump to first result
+  if (event.key === 'Tab' && !event.shiftKey) {
+    isFocused.value = false
+    selectedIndex.value = -1
+    // Find and focus the first search result directly
+    const firstResult = document.querySelector('.search-results .result-item') as HTMLElement
+    if (firstResult) {
+      event.preventDefault()
+      firstResult.focus()
+    }
+    return
+  }
+
   if (!showSuggestions.value) return
 
   switch (event.key) {
@@ -61,10 +92,6 @@ function handleKeydown(event: KeyboardEvent) {
         event.preventDefault()
         selectSuggestion(suggestions.value[selectedIndex.value].name)
       }
-      break
-    case 'Escape':
-      isFocused.value = false
-      selectedIndex.value = -1
       break
   }
 }
@@ -103,6 +130,7 @@ defineExpose({ focus })
     <button
       v-if="hasQuery"
       class="search-clear"
+      tabindex="-1"
       @click="clear"
       aria-label="Clear search"
     >
