@@ -87,6 +87,36 @@ def list_available_layouts(templates):
     print()
 
 
+def create_aruco_detector():
+    """Create an ArUco detector with tuned parameters."""
+    aruco_dict = cv2.aruco.getPredefinedDictionary(ARUCO_DICT)
+    parameters = cv2.aruco.DetectorParameters()
+
+    # Tune detection parameters for better marker detection
+    # Use a wider range of adaptive threshold window sizes
+    parameters.adaptiveThreshWinSizeMin = 3
+    parameters.adaptiveThreshWinSizeMax = 23
+    parameters.adaptiveThreshWinSizeStep = 10
+
+    # Be more lenient with marker perimeter (allows smaller/larger markers)
+    parameters.minMarkerPerimeterRate = 0.01
+    parameters.maxMarkerPerimeterRate = 4.0
+
+    # Allow more variation in marker shape (helps with perspective)
+    parameters.polygonalApproxAccuracyRate = 0.08
+
+    # Enable corner refinement for better accuracy
+    parameters.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
+    parameters.cornerRefinementWinSize = 5
+    parameters.cornerRefinementMaxIterations = 30
+
+    # Be more lenient with bit extraction
+    parameters.minOtsuStdDev = 5.0
+    parameters.perspectiveRemoveIgnoredMarginPerCell = 0.13
+
+    return cv2.aruco.ArucoDetector(aruco_dict, parameters)
+
+
 def find_aruco_markers(img):
     """
     Detect all four ArUco markers and return the corner points.
@@ -100,11 +130,63 @@ def find_aruco_markers(img):
     Returns:
         dict with 'tl', 'tr', 'bl', 'br' corner points, or None if markers not found
     """
-    aruco_dict = cv2.aruco.getPredefinedDictionary(ARUCO_DICT)
-    parameters = cv2.aruco.DetectorParameters()
-    detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
+    detector = create_aruco_detector()
 
-    corners, ids, rejected = detector.detectMarkers(img)
+    # Try detection with multiple preprocessing approaches
+    all_corners = []
+    all_ids = []
+
+    # Approach 1: Original image
+    corners, ids, _ = detector.detectMarkers(img)
+    if ids is not None:
+        all_corners.extend(corners)
+        all_ids.extend(ids.flatten())
+        print(f"  Original image: found {ids.flatten().tolist()}")
+
+    # Approach 2: Enhanced contrast (CLAHE)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced = clahe.apply(gray)
+    enhanced_bgr = cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)
+    corners2, ids2, _ = detector.detectMarkers(enhanced_bgr)
+    if ids2 is not None:
+        for i, mid in enumerate(ids2.flatten()):
+            if mid not in all_ids:
+                all_corners.append(corners2[i])
+                all_ids.append(mid)
+        print(f"  CLAHE enhanced: found {ids2.flatten().tolist()}")
+
+    # Approach 3: Sharpened image
+    kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
+    sharpened = cv2.filter2D(img, -1, kernel)
+    corners3, ids3, _ = detector.detectMarkers(sharpened)
+    if ids3 is not None:
+        for i, mid in enumerate(ids3.flatten()):
+            if mid not in all_ids:
+                all_corners.append(corners3[i])
+                all_ids.append(mid)
+        print(f"  Sharpened: found {ids3.flatten().tolist()}")
+
+    # Approach 4: Scaled up (helps with small markers)
+    scale = 1.5
+    scaled = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    corners4, ids4, _ = detector.detectMarkers(scaled)
+    if ids4 is not None:
+        for i, mid in enumerate(ids4.flatten()):
+            if mid not in all_ids:
+                # Scale corners back to original image coordinates
+                scaled_corners = corners4[i] / scale
+                all_corners.append(scaled_corners)
+                all_ids.append(mid)
+        print(f"  Scaled up 1.5x: found {ids4.flatten().tolist()}")
+
+    if not all_ids:
+        print("No ArUco markers detected")
+        return None
+
+    # Convert to numpy arrays matching original format
+    corners = all_corners
+    ids = np.array(all_ids)
 
     if ids is None:
         print("No ArUco markers detected")
@@ -239,10 +321,9 @@ def find_white_labels(img, output_dir):
         area = cv2.contourArea(contour)
 
         # Filter by size and aspect ratio (labels are wider than tall)
-        # Also filter out labels at the very edge of the image (false positives)
+        # Also filter out labels at very top/bottom edge (false positives from markers)
         if (w > 100 and h > 20 and h < 150 and w/h > 2 and area > 3000
-            and y > 50 and y < height - 100  # Not at top/bottom edge
-            and x > 50 and x < width - 100):  # Not at left/right edge
+            and y > 50 and y < height - 100):  # Not at top/bottom edge
             labels.append({
                 'x': x,
                 'y': y,
@@ -302,7 +383,7 @@ def assign_labels_to_grid(labels, case_bounds, layout, drawer_sizes):
         size_info = size_map.get(size_name)
         if not size_info:
             print(
-                f'Warning: Unknown drawer size '{size_name}' for position ({row}, {col})'
+                f"Warning: Unknown drawer size '{size_name}' for position ({row}, {col})"
             )
             continue
 
