@@ -32,21 +32,17 @@ export interface Case {
   updatedAt: string
 }
 
-export interface DrawerSize {
-  id: number
-  name: string
-  widthUnits: number
-  heightUnits: number
-}
-
 export interface Drawer {
   id: number
   caseId: number
-  drawerSizeId: number
+  widthUnits: number
+  heightUnits: number
   name: string | null
   gridColumn: number
   gridRow: number
   color: string
+  partCount?: number
+  categories?: Category[]
   createdAt: string
   updatedAt: string
 }
@@ -93,7 +89,8 @@ export interface LayoutTemplate {
 export interface DrawerPlacement {
   col: number
   row: number
-  size: string
+  widthUnits: number
+  heightUnits: number
 }
 
 export interface SearchResult {

@@ -69,18 +69,12 @@ interface Drawer {
   id: number;
   caseId: number;
   name: string | null;
+  widthUnits: number;
+  heightUnits: number;
   gridColumn: number;
   gridRow: number;
   color: string;
-  drawerSize?: DrawerSize;
   parts?: Part[];
-}
-
-interface DrawerSize {
-  id: number;
-  name: string;
-  widthUnits: number;
-  heightUnits: number;
 }
 
 interface Part {
@@ -119,7 +113,8 @@ interface LayoutTemplate {
 interface DrawerPlacement {
   col: number;
   row: number;
-  size: string;
+  widthUnits: number;
+  heightUnits: number;
 }
 
 interface SearchResult {
@@ -333,21 +328,23 @@ function createServer(): McpServer {
       description: 'Create a new drawer in a case.',
       inputSchema: {
         caseId: z.number().describe('The ID of the case to add the drawer to'),
-        drawerSizeId: z.number().describe('The ID of the drawer size to use'),
+        widthUnits: z.number().optional().describe('Width of the drawer in grid units (default: 1)'),
+        heightUnits: z.number().optional().describe('Height of the drawer in grid units (default: 1)'),
         gridColumn: z.number().describe('Column position in the case grid (1-based)'),
         gridRow: z.number().describe('Row position in the case grid (1-based)'),
         name: z.string().optional().describe('Optional name for the drawer'),
       },
     },
-    async ({ caseId, drawerSizeId, gridColumn, gridRow, name }) => {
+    async ({ caseId, widthUnits = 1, heightUnits = 1, gridColumn, gridRow, name }) => {
       const drawer = await apiRequest<Drawer>('/drawers', 'POST', {
         caseId,
-        drawerSizeId,
+        widthUnits,
+        heightUnits,
         gridColumn,
         gridRow,
         name,
       });
-      return { content: [{ type: 'text', text: `Created drawer with ID ${drawer.id} at position (${gridColumn}, ${gridRow})` }] };
+      return { content: [{ type: 'text', text: `Created drawer with ID ${drawer.id} at position (${gridColumn}, ${gridRow}) with size ${widthUnits}x${heightUnits}` }] };
     }
   );
 
@@ -381,17 +378,6 @@ function createServer(): McpServer {
     }
   );
 
-  server.registerTool(
-    'list_drawer_sizes',
-    {
-      description: 'List all available drawer sizes.',
-      inputSchema: {},
-    },
-    async () => {
-      const sizes = await apiRequest<DrawerSize[]>('/drawer-sizes');
-      return { content: [{ type: 'text', text: JSON.stringify(sizes, null, 2) }] };
-    }
-  );
 
   server.registerTool(
     'create_case',
@@ -659,7 +645,8 @@ function createServer(): McpServer {
         layoutData: z.array(z.object({
           col: z.number().describe('Column position (1-based)'),
           row: z.number().describe('Row position (1-based)'),
-          size: z.string().describe('Drawer size name (e.g., "1x1", "2x1")'),
+          widthUnits: z.number().describe('Width in grid units'),
+          heightUnits: z.number().describe('Height in grid units'),
         })).describe('Array of drawer placements'),
       },
     },
@@ -688,7 +675,8 @@ function createServer(): McpServer {
         layoutData: z.array(z.object({
           col: z.number(),
           row: z.number(),
-          size: z.string(),
+          widthUnits: z.number(),
+          heightUnits: z.number(),
         })).optional().describe('New array of drawer placements'),
       },
     },
@@ -762,19 +750,6 @@ function createServer(): McpServer {
     }
   );
 
-  server.registerResource(
-    'drawer-sizes',
-    'storage://drawer-sizes',
-    {
-      name: 'Drawer Sizes',
-      description: 'Available drawer size configurations',
-      mimeType: 'application/json',
-    },
-    async () => {
-      const sizes = await apiRequest<DrawerSize[]>('/drawer-sizes');
-      return { contents: [{ uri: 'storage://drawer-sizes', mimeType: 'application/json', text: JSON.stringify(sizes, null, 2) }] };
-    }
-  );
 
   server.registerResource(
     'layout-templates',

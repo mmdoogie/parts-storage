@@ -78,7 +78,7 @@ const drawerShadow = computed(() => {
 
 // Scale pull handle based on drawer size
 const pullDimensions = computed(() => {
-  const widthUnits = props.drawer.drawerSize?.widthUnits ?? 1
+  const widthUnits = props.drawer.widthUnits ?? 1
 
   // Base width for a 1x1 drawer, scales with drawer width
   const baseWidth = 20
@@ -120,7 +120,8 @@ function handleDragStart(event: DragEvent) {
     type: 'drawer',
     id: props.drawer.id,
     sourceCase: props.drawer.caseId,
-    size: props.drawer.drawerSize
+    widthUnits: props.drawer.widthUnits,
+    heightUnits: props.drawer.heightUnits
   }
   startDrag(data, event)
 }

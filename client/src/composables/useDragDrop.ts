@@ -43,8 +43,8 @@ export function useDragDrop() {
       // Skip the drawer being dragged
       if (excludeDrawerId && drawer.id === excludeDrawerId) continue
 
-      const drawerWidth = drawer.drawerSize?.widthUnits ?? 1
-      const drawerHeight = drawer.drawerSize?.heightUnits ?? 1
+      const drawerWidth = drawer.widthUnits ?? 1
+      const drawerHeight = drawer.heightUnits ?? 1
 
       // Check for overlap using AABB collision detection
       const xOverlap = targetCol < drawer.gridColumn + drawerWidth &&
@@ -84,13 +84,12 @@ export function useDragDrop() {
     validDropTargets.value.clear()
 
     if (!dragData.value || dragData.value.type !== 'drawer') return
-    if (!dragData.value.size) return
 
     const wall = wallStore.currentWall
     if (!wall?.cases) return
 
-    const widthUnits = dragData.value.size.widthUnits
-    const heightUnits = dragData.value.size.heightUnits
+    const widthUnits = dragData.value.widthUnits ?? 1
+    const heightUnits = dragData.value.heightUnits ?? 1
 
     // Check each case in the wall
     for (const caseData of wall.cases) {
@@ -226,14 +225,6 @@ export function useDragDrop() {
     }
   }
 
-  /**
-   * Check if dragging the same drawer size as a given size name
-   */
-  function isDraggingSize(sizeName: string): boolean {
-    if (!dragData.value?.size) return false
-    return dragData.value.size.name === sizeName
-  }
-
   return {
     // State (readonly)
     isDragging: readonly(isDragging),
@@ -248,7 +239,6 @@ export function useDragDrop() {
     setDragOver,
     clearDragOver,
     handleDrop,
-    isDraggingSize,
     getTargetKey
   }
 }

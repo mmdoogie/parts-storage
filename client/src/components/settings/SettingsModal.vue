@@ -2,19 +2,17 @@
 import { ref, watch } from 'vue'
 import { useSettingsStore } from '@/stores'
 import BaseModal from '@/components/base/BaseModal.vue'
-import DrawerSizeManager from './DrawerSizeManager.vue'
 import LayoutTemplateManager from './LayoutTemplateManager.vue'
 import CategoryManager from '@/components/category/CategoryManager.vue'
 import WallManager from './WallManager.vue'
 
 const settingsStore = useSettingsStore()
 
-type TabType = 'walls' | 'drawer-sizes' | 'layout-templates' | 'categories'
+type TabType = 'walls' | 'layout-templates' | 'categories'
 const activeTab = ref<TabType>('walls')
 
 const tabs: { id: TabType; label: string }[] = [
   { id: 'walls', label: 'Walls' },
-  { id: 'drawer-sizes', label: 'Drawer Sizes' },
   { id: 'layout-templates', label: 'Layout Templates' },
   { id: 'categories', label: 'Categories' }
 ]
@@ -54,7 +52,6 @@ function handleClose() {
       <!-- Tab Content -->
       <div class="tab-content">
         <WallManager v-if="activeTab === 'walls'" />
-        <DrawerSizeManager v-if="activeTab === 'drawer-sizes'" />
         <LayoutTemplateManager v-if="activeTab === 'layout-templates'" />
         <CategoryManager v-if="activeTab === 'categories'" />
       </div>

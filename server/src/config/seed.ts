@@ -67,7 +67,7 @@ async function seed() {
   const akroMils8x8Layout = []
   for (let row = 1; row <= 8; row++) {
     for (let col = 1; col <= 8; col++) {
-      akroMils8x8Layout.push({ col, row, size: 'small' })
+      akroMils8x8Layout.push({ col, row, widthUnits: 1, heightUnits: 1 })
     }
   }
   insertTemplate.run(
@@ -82,12 +82,12 @@ async function seed() {
   const akroMils32x12Layout = []
   for (let row = 1; row <= 4; row++) {
     for (let col = 1; col <= 8; col++) {
-      akroMils32x12Layout.push({ col, row, size: 'small' })
+      akroMils32x12Layout.push({ col, row, widthUnits: 1, heightUnits: 1 })
     }
   }
   for (let row = 5; row <= 7; row++) {
     for (let col = 1; col <= 8; col += 2) {
-      akroMils32x12Layout.push({ col, row, size: 'medium' })
+      akroMils32x12Layout.push({ col, row, widthUnits: 2, heightUnits: 1 })
     }
   }
   insertTemplate.run(
@@ -102,7 +102,7 @@ async function seed() {
   const akroMils4x4Layout = []
   for (let row = 1; row <= 4; row++) {
     for (let col = 1; col <= 4; col++) {
-      akroMils4x4Layout.push({ col, row, size: 'small' })
+      akroMils4x4Layout.push({ col, row, widthUnits: 1, heightUnits: 1 })
     }
   }
   insertTemplate.run(
@@ -120,10 +120,10 @@ async function seed() {
     2,
     2,
     JSON.stringify([
-      { col: 1, row: 1, size: 'small' },
-      { col: 2, row: 1, size: 'small' },
-      { col: 1, row: 2, size: 'small' },
-      { col: 2, row: 2, size: 'small' }
+      { col: 1, row: 1, widthUnits: 1, heightUnits: 1 },
+      { col: 2, row: 1, widthUnits: 1, heightUnits: 1 },
+      { col: 1, row: 2, widthUnits: 1, heightUnits: 1 },
+      { col: 2, row: 2, widthUnits: 1, heightUnits: 1 }
     ])
   )
 
@@ -134,9 +134,9 @@ async function seed() {
     1,
     3,
     JSON.stringify([
-      { col: 1, row: 1, size: 'small' },
-      { col: 1, row: 2, size: 'small' },
-      { col: 1, row: 3, size: 'small' }
+      { col: 1, row: 1, widthUnits: 1, heightUnits: 1 },
+      { col: 1, row: 2, widthUnits: 1, heightUnits: 1 },
+      { col: 1, row: 3, widthUnits: 1, heightUnits: 1 }
     ])
   )
 
@@ -147,8 +147,8 @@ async function seed() {
     1,
     2,
     JSON.stringify([
-      { col: 1, row: 1, size: 'small' },
-      { col: 1, row: 2, size: 'small' }
+      { col: 1, row: 1, widthUnits: 1, heightUnits: 1 },
+      { col: 1, row: 2, widthUnits: 1, heightUnits: 1 }
     ])
   )
 
@@ -159,12 +159,12 @@ async function seed() {
     3,
     6,
     JSON.stringify([
-      { col: 1, row: 1, size: 'wide 3' },
-      { col: 1, row: 2, size: 'wide 3' },
-      { col: 1, row: 3, size: 'wide 3' },
-      { col: 1, row: 4, size: 'tall 3' },
-      { col: 2, row: 4, size: 'tall 3' },
-      { col: 3, row: 4, size: 'tall 3' }
+      { col: 1, row: 1, widthUnits: 3, heightUnits: 1 },
+      { col: 1, row: 2, widthUnits: 3, heightUnits: 1 },
+      { col: 1, row: 3, widthUnits: 3, heightUnits: 1 },
+      { col: 1, row: 4, widthUnits: 1, heightUnits: 3 },
+      { col: 2, row: 4, widthUnits: 1, heightUnits: 3 },
+      { col: 3, row: 4, widthUnits: 1, heightUnits: 3 }
     ])
   )
 
@@ -175,10 +175,10 @@ async function seed() {
     2,
     5,
     JSON.stringify([
-      { col: 1, row: 1, size: 'medium' },
-      { col: 1, row: 2, size: 'medium' },
-      { col: 1, row: 3, size: 'tall 3' },
-      { col: 2, row: 3, size: 'tall 3' }
+      { col: 1, row: 1, widthUnits: 2, heightUnits: 1 },
+      { col: 1, row: 2, widthUnits: 2, heightUnits: 1 },
+      { col: 1, row: 3, widthUnits: 1, heightUnits: 3 },
+      { col: 2, row: 3, widthUnits: 1, heightUnits: 3 }
     ])
   )
 
@@ -189,10 +189,10 @@ async function seed() {
     1,
     4,
     JSON.stringify([
-      { col: 1, row: 1, size: 'small' },
-      { col: 1, row: 2, size: 'small' },
-      { col: 1, row: 3, size: 'small' },
-      { col: 1, row: 4, size: 'small' }
+      { col: 1, row: 1, widthUnits: 1, heightUnits: 1 },
+      { col: 1, row: 2, widthUnits: 1, heightUnits: 1 },
+      { col: 1, row: 3, widthUnits: 1, heightUnits: 1 },
+      { col: 1, row: 4, widthUnits: 1, heightUnits: 1 }
     ])
   )
 

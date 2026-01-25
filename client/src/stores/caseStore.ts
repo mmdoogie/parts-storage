@@ -88,8 +88,8 @@ export const useCaseStore = defineStore('case', () => {
 
     let affectedCount = 0
     for (const drawer of caseData.drawers) {
-      const drawerEndCol = drawer.gridColumn + (drawer.drawerSize?.widthUnits ?? 1) - 1
-      const drawerEndRow = drawer.gridRow + (drawer.drawerSize?.heightUnits ?? 1) - 1
+      const drawerEndCol = drawer.gridColumn + (drawer.widthUnits ?? 1) - 1
+      const drawerEndRow = drawer.gridRow + (drawer.heightUnits ?? 1) - 1
 
       if (drawerEndCol > newColumns || drawerEndRow > newRows) {
         affectedCount++

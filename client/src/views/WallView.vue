@@ -64,7 +64,8 @@ const isAddingDrawer = ref(false)
 const addDrawerCaseId = ref<number | null>(null)
 const addDrawerColumn = ref(1)
 const addDrawerRow = ref(1)
-const addDrawerSizeId = ref<number | null>(null)
+const addDrawerWidth = ref(1)
+const addDrawerHeight = ref(1)
 const addDrawerName = ref('')
 const addDrawerLoading = ref(false)
 
@@ -140,7 +141,6 @@ onMounted(async () => {
   if (wallStore.walls.length > 0) {
     await wallStore.fetchWall(wallStore.walls[0].id)
   }
-  await drawerStore.fetchDrawerSizes()
   await categoryStore.fetchCategories()
   templates.value = await caseService.getLayoutTemplates()
 
@@ -305,54 +305,30 @@ function handleAddDrawer(caseId: number, column: number, row: number) {
   addDrawerCaseId.value = caseId
   addDrawerColumn.value = column
   addDrawerRow.value = row
+  addDrawerWidth.value = 1
+  addDrawerHeight.value = 1
   addDrawerName.value = ''
   isAddingDrawer.value = true
-
-  // Find the first valid drawer size, or default to the first one
-  const validSize = drawerStore.drawerSizes.find(size => {
-    const caseData = cases.value.find(c => c.id === caseId)
-    if (!caseData) return false
-
-    // Check bounds
-    if (column + size.widthUnits - 1 > caseData.internalColumns) return false
-    if (row + size.heightUnits - 1 > caseData.internalRows) return false
-
-    // Check collisions
-    if (caseData.drawers) {
-      for (const drawer of caseData.drawers) {
-        const drawerWidth = drawer.drawerSize?.widthUnits ?? 1
-        const drawerHeight = drawer.drawerSize?.heightUnits ?? 1
-
-        const xOverlap = column < drawer.gridColumn + drawerWidth &&
-                         column + size.widthUnits > drawer.gridColumn
-        const yOverlap = row < drawer.gridRow + drawerHeight &&
-                         row + size.heightUnits > drawer.gridRow
-
-        if (xOverlap && yOverlap) return false
-      }
-    }
-    return true
-  })
-
-  addDrawerSizeId.value = validSize?.id || null
 }
 
 function closeAddDrawerModal() {
   isAddingDrawer.value = false
   addDrawerCaseId.value = null
-  addDrawerSizeId.value = null
+  addDrawerWidth.value = 1
+  addDrawerHeight.value = 1
   addDrawerName.value = ''
 }
 
 async function createDrawer() {
-  if (!addDrawerCaseId.value || !addDrawerSizeId.value) return
+  if (!addDrawerCaseId.value || !isDrawerSizeValid.value) return
 
   addDrawerLoading.value = true
   markLocalMutation() // Mark before API call so SSE events are ignored
   try {
     const newDrawer = await drawerStore.createDrawer({
       caseId: addDrawerCaseId.value,
-      drawerSizeId: addDrawerSizeId.value,
+      widthUnits: addDrawerWidth.value,
+      heightUnits: addDrawerHeight.value,
       gridColumn: addDrawerColumn.value,
       gridRow: addDrawerRow.value,
       name: addDrawerName.value.trim() || undefined
@@ -385,28 +361,26 @@ const addDrawerCase = computed(() => {
   return cases.value.find(c => c.id === addDrawerCaseId.value) || null
 })
 
-// Check if a drawer size is valid at the selected position
-function isDrawerSizeValid(sizeId: number): boolean {
+// Computed for validating drawer size at selected position
+const isDrawerSizeValid = computed(() => {
   const caseData = addDrawerCase.value
   if (!caseData) return false
 
-  const size = drawerStore.drawerSizes.find(s => s.id === sizeId)
-  if (!size) return false
-
   const col = addDrawerColumn.value
   const row = addDrawerRow.value
-  const widthUnits = size.widthUnits
-  const heightUnits = size.heightUnits
+  const widthUnits = addDrawerWidth.value
+  const heightUnits = addDrawerHeight.value
 
   // Check bounds
+  if (widthUnits < 1 || heightUnits < 1) return false
   if (col + widthUnits - 1 > caseData.internalColumns) return false
   if (row + heightUnits - 1 > caseData.internalRows) return false
 
   // Check for collisions with existing drawers
   if (caseData.drawers) {
     for (const drawer of caseData.drawers) {
-      const drawerWidth = drawer.drawerSize?.widthUnits ?? 1
-      const drawerHeight = drawer.drawerSize?.heightUnits ?? 1
+      const drawerWidth = drawer.widthUnits ?? 1
+      const drawerHeight = drawer.heightUnits ?? 1
 
       // AABB collision detection
       const xOverlap = col < drawer.gridColumn + drawerWidth &&
@@ -419,20 +393,21 @@ function isDrawerSizeValid(sizeId: number): boolean {
   }
 
   return true
-}
+})
 
-// Get validation message for a drawer size
-function getDrawerSizeValidationMessage(sizeId: number): string {
+// Get validation message for drawer size
+const drawerSizeValidationMessage = computed(() => {
   const caseData = addDrawerCase.value
   if (!caseData) return ''
 
-  const size = drawerStore.drawerSizes.find(s => s.id === sizeId)
-  if (!size) return ''
-
   const col = addDrawerColumn.value
   const row = addDrawerRow.value
-  const widthUnits = size.widthUnits
-  const heightUnits = size.heightUnits
+  const widthUnits = addDrawerWidth.value
+  const heightUnits = addDrawerHeight.value
+
+  if (widthUnits < 1 || heightUnits < 1) {
+    return 'Dimensions must be at least 1x1'
+  }
 
   // Check bounds
   if (col + widthUnits - 1 > caseData.internalColumns) {
@@ -445,8 +420,8 @@ function getDrawerSizeValidationMessage(sizeId: number): string {
   // Check for collisions
   if (caseData.drawers) {
     for (const drawer of caseData.drawers) {
-      const drawerWidth = drawer.drawerSize?.widthUnits ?? 1
-      const drawerHeight = drawer.drawerSize?.heightUnits ?? 1
+      const drawerWidth = drawer.widthUnits ?? 1
+      const drawerHeight = drawer.heightUnits ?? 1
 
       const xOverlap = col < drawer.gridColumn + drawerWidth &&
                        col + widthUnits > drawer.gridColumn
@@ -458,7 +433,20 @@ function getDrawerSizeValidationMessage(sizeId: number): string {
   }
 
   return ''
-}
+})
+
+// Max allowed dimensions for new drawer
+const maxDrawerWidth = computed(() => {
+  const caseData = addDrawerCase.value
+  if (!caseData) return 1
+  return caseData.internalColumns - addDrawerColumn.value + 1
+})
+
+const maxDrawerHeight = computed(() => {
+  const caseData = addDrawerCase.value
+  if (!caseData) return 1
+  return caseData.internalRows - addDrawerRow.value + 1
+})
 
 // Edit case functions
 function handleEditCase(caseId: number) {
@@ -668,26 +656,30 @@ async function handleCaseResize(caseId: number, newColumnSpan: number, newRowSpa
 
         <div class="size-section">
           <label class="section-label">Drawer Size</label>
-          <div class="size-grid">
-            <button
-              v-for="size in drawerStore.drawerSizes"
-              :key="size.id"
-              class="size-option"
-              :class="{
-                selected: addDrawerSizeId === size.id,
-                disabled: !isDrawerSizeValid(size.id)
-              }"
-              :disabled="!isDrawerSizeValid(size.id)"
-              :title="getDrawerSizeValidationMessage(size.id)"
-              @click="isDrawerSizeValid(size.id) && (addDrawerSizeId = size.id)"
-            >
-              <span class="size-name">{{ size.name }}</span>
-              <span class="size-desc">{{ size.widthUnits }}x{{ size.heightUnits }}</span>
-              <span v-if="!isDrawerSizeValid(size.id)" class="size-invalid">
-                {{ getDrawerSizeValidationMessage(size.id) }}
-              </span>
-            </button>
+          <div class="dimension-inputs">
+            <div class="dimension-field">
+              <label>Width</label>
+              <input
+                type="number"
+                v-model.number="addDrawerWidth"
+                :min="1"
+                :max="maxDrawerWidth"
+              />
+            </div>
+            <span class="dimension-separator">x</span>
+            <div class="dimension-field">
+              <label>Height</label>
+              <input
+                type="number"
+                v-model.number="addDrawerHeight"
+                :min="1"
+                :max="maxDrawerHeight"
+              />
+            </div>
           </div>
+          <p v-if="drawerSizeValidationMessage" class="validation-error">
+            {{ drawerSizeValidationMessage }}
+          </p>
         </div>
       </div>
 
@@ -698,7 +690,7 @@ async function handleCaseResize(caseId: number, newColumnSpan: number, newRowSpa
         <BaseButton
           @click="createDrawer"
           :loading="addDrawerLoading"
-          :disabled="!addDrawerSizeId || !isDrawerSizeValid(addDrawerSizeId)"
+          :disabled="!isDrawerSizeValid"
         >
           Create Drawer
         </BaseButton>
@@ -858,60 +850,47 @@ async function handleCaseResize(caseId: number, newColumnSpan: number, newRowSpa
   gap: var(--spacing-sm);
 }
 
-.size-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+.dimension-inputs {
+  display: flex;
+  align-items: flex-end;
   gap: var(--spacing-sm);
 }
 
-.size-option {
-  padding: var(--spacing-md);
-  border: 2px solid rgba(0, 0, 0, 0.1);
-  border-radius: var(--radius-md);
-  text-align: center;
-  transition: all var(--transition-fast);
+.dimension-field {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs);
-  cursor: pointer;
-  background: white;
+  flex: 1;
 }
 
-.size-option:hover {
-  border-color: var(--color-primary);
-}
-
-.size-option.selected {
-  border-color: var(--color-primary);
-  background: rgba(52, 152, 219, 0.1);
-}
-
-.size-name {
-  font-weight: 600;
-  font-size: var(--font-size-sm);
-  text-transform: capitalize;
-}
-
-.size-desc {
+.dimension-field label {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
 
-.size-option.disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  border-color: rgba(231, 76, 60, 0.3);
-  background: rgba(231, 76, 60, 0.05);
+.dimension-field input {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-md);
+  width: 100%;
+  text-align: center;
 }
 
-.size-option.disabled:hover {
-  border-color: rgba(231, 76, 60, 0.3);
-  transform: none;
+.dimension-field input:focus {
+  outline: none;
+  border-color: var(--color-primary);
 }
 
-.size-invalid {
-  font-size: var(--font-size-xs);
+.dimension-separator {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-muted);
+  padding-bottom: var(--spacing-sm);
+}
+
+.validation-error {
   color: var(--color-danger);
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  margin: 0;
 }
 </style>

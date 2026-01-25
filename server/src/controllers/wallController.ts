@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import { getDb, toCamelCase } from '../config/database.js'
 import { AppError } from '../middleware/errorHandler.js'
 import { storageEvents } from '../events.js'
-import type { Wall, Case, Drawer, DrawerSize, Category } from '../types/index.js'
+import type { Wall, Case, Drawer, Category } from '../types/index.js'
 
 export function getWalls(_req: Request, res: Response, next: NextFunction) {
   try {
@@ -39,16 +39,12 @@ export function getWall(req: Request, res: Response, next: NextFunction) {
 
       // Get drawers for this case
       const drawerRows = db.prepare(`
-        SELECT d.*, ds.name as size_name, ds.width_units, ds.height_units
-        FROM drawers d
-        JOIN drawer_sizes ds ON d.drawer_size_id = ds.id
-        WHERE d.case_id = ?
-        ORDER BY d.grid_row, d.grid_column
+        SELECT * FROM drawers WHERE case_id = ?
+        ORDER BY grid_row, grid_column
       `).all(caseData.id)
 
       const drawers = drawerRows.map(drawerRow => {
-        const dr = drawerRow as Record<string, unknown>
-        const drawer = toCamelCase<Drawer>(dr)
+        const drawer = toCamelCase<Drawer>(drawerRow as Record<string, unknown>)
 
         // Get part count and aggregated categories
         const partCount = db.prepare(`
@@ -63,12 +59,6 @@ export function getWall(req: Request, res: Response, next: NextFunction) {
 
         return {
           ...drawer,
-          drawerSize: {
-            id: dr.drawer_size_id as number,
-            name: dr.size_name as string,
-            widthUnits: dr.width_units as number,
-            heightUnits: dr.height_units as number
-          } as DrawerSize,
           partCount: partCount.count,
           categories: categoryRows.map(c => toCamelCase<Category>(c as Record<string, unknown>))
         }

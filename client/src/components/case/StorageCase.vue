@@ -72,8 +72,8 @@ const coveredSlots = computed(() => {
   const covered = new Set<string>()
   if (props.caseData.drawers) {
     for (const drawer of props.caseData.drawers) {
-      const widthUnits = drawer.drawerSize?.widthUnits ?? 1
-      const heightUnits = drawer.drawerSize?.heightUnits ?? 1
+      const widthUnits = drawer.widthUnits ?? 1
+      const heightUnits = drawer.heightUnits ?? 1
       for (let c = 0; c < widthUnits; c++) {
         for (let r = 0; r < heightUnits; r++) {
           covered.add(`${drawer.gridColumn + c}-${drawer.gridRow + r}`)

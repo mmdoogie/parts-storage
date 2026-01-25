@@ -1,10 +1,5 @@
 import api from './api'
-import type { Drawer, DrawerSize, Category, ApiResponse } from '@/types'
-
-export async function getDrawerSizes(): Promise<DrawerSize[]> {
-  const response = await api.get<unknown, ApiResponse<DrawerSize[]>>('/drawer-sizes')
-  return response.data
-}
+import type { Drawer, Category, ApiResponse } from '@/types'
 
 export async function getDrawer(id: number): Promise<Drawer> {
   const response = await api.get<unknown, ApiResponse<Drawer>>(`/drawers/${id}`)
@@ -13,7 +8,8 @@ export async function getDrawer(id: number): Promise<Drawer> {
 
 export async function createDrawer(data: {
   caseId: number
-  drawerSizeId: number
+  widthUnits?: number
+  heightUnits?: number
   gridColumn: number
   gridRow: number
   name?: string

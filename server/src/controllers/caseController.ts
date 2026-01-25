@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import { getDb, toCamelCase } from '../config/database.js'
 import { AppError } from '../middleware/errorHandler.js'
 import { storageEvents } from '../events.js'
-import type { Case, Drawer, DrawerSize, Category, LayoutTemplate, DrawerPlacement } from '../types/index.js'
+import type { Case, Drawer, Category, LayoutTemplate, DrawerPlacement } from '../types/index.js'
 
 export function getCases(req: Request, res: Response, next: NextFunction) {
   try {
@@ -42,16 +42,12 @@ export function getCase(req: Request, res: Response, next: NextFunction) {
 
     // Get drawers with parts
     const drawerRows = db.prepare(`
-      SELECT d.*, ds.name as size_name, ds.width_units, ds.height_units
-      FROM drawers d
-      JOIN drawer_sizes ds ON d.drawer_size_id = ds.id
-      WHERE d.case_id = ?
-      ORDER BY d.grid_row, d.grid_column
+      SELECT * FROM drawers WHERE case_id = ?
+      ORDER BY grid_row, grid_column
     `).all(id)
 
     const drawers = drawerRows.map(drawerRow => {
-      const dr = drawerRow as Record<string, unknown>
-      const drawer = toCamelCase<Drawer>(dr)
+      const drawer = toCamelCase<Drawer>(drawerRow as Record<string, unknown>)
 
       const partCount = db.prepare(`
         SELECT COUNT(*) as count FROM parts WHERE drawer_id = ?
@@ -65,12 +61,6 @@ export function getCase(req: Request, res: Response, next: NextFunction) {
 
       return {
         ...drawer,
-        drawerSize: {
-          id: dr.drawer_size_id as number,
-          name: dr.size_name as string,
-          widthUnits: dr.width_units as number,
-          heightUnits: dr.height_units as number
-        } as DrawerSize,
         partCount: partCount.count,
         categories: categoryRows.map(c => toCamelCase<Category>(c as Record<string, unknown>))
       }
@@ -280,12 +270,12 @@ export function applyTemplate(req: Request, res: Response, next: NextFunction) {
 
     // Create drawers from template
     const insertDrawer = db.prepare(`
-      INSERT INTO drawers (case_id, drawer_size_id, grid_column, grid_row)
-      VALUES (?, (SELECT id FROM drawer_sizes WHERE name = ?), ?, ?)
+      INSERT INTO drawers (case_id, width_units, height_units, grid_column, grid_row)
+      VALUES (?, ?, ?, ?, ?)
     `)
 
     for (const placement of layoutData) {
-      insertDrawer.run(id, placement.size, placement.col, placement.row)
+      insertDrawer.run(id, placement.widthUnits, placement.heightUnits, placement.col, placement.row)
     }
 
     // Return updated case
@@ -342,15 +332,22 @@ export function createLayoutTemplate(req: Request, res: Response, next: NextFunc
     }
 
     // Validate each drawer placement
-    const drawerSizes = db.prepare('SELECT name FROM drawer_sizes').all() as Array<{ name: string }>
-    const validSizeNames = drawerSizes.map(s => s.name)
-
     for (const placement of layoutData) {
-      if (!placement.col || !placement.row || !placement.size) {
-        throw new AppError(400, 'INVALID_VALUE', 'Each drawer placement must have col, row, and size')
+      if (!placement.col || !placement.row) {
+        throw new AppError(400, 'INVALID_VALUE', 'Each drawer placement must have col and row')
       }
-      if (!validSizeNames.includes(placement.size)) {
-        throw new AppError(400, 'INVALID_VALUE', `Invalid drawer size: ${placement.size}`)
+      if (!placement.widthUnits || placement.widthUnits < 1) {
+        throw new AppError(400, 'INVALID_VALUE', 'Each drawer placement must have widthUnits >= 1')
+      }
+      if (!placement.heightUnits || placement.heightUnits < 1) {
+        throw new AppError(400, 'INVALID_VALUE', 'Each drawer placement must have heightUnits >= 1')
+      }
+      // Validate placement fits within grid
+      if (placement.col + placement.widthUnits - 1 > columns) {
+        throw new AppError(400, 'INVALID_VALUE', `Drawer at col ${placement.col} exceeds grid columns`)
+      }
+      if (placement.row + placement.heightUnits - 1 > rows) {
+        throw new AppError(400, 'INVALID_VALUE', `Drawer at row ${placement.row} exceeds grid rows`)
       }
     }
 
@@ -414,15 +411,26 @@ export function updateLayoutTemplate(req: Request, res: Response, next: NextFunc
         throw new AppError(400, 'INVALID_VALUE', 'layoutData must be an array of drawer placements')
       }
 
-      const drawerSizes = db.prepare('SELECT name FROM drawer_sizes').all() as Array<{ name: string }>
-      const validSizeNames = drawerSizes.map(s => s.name)
+      // Use provided columns/rows or existing values for validation
+      const effectiveColumns = columns ?? (existing.columns as number)
+      const effectiveRows = rows ?? (existing.rows as number)
 
       for (const placement of layoutData) {
-        if (!placement.col || !placement.row || !placement.size) {
-          throw new AppError(400, 'INVALID_VALUE', 'Each drawer placement must have col, row, and size')
+        if (!placement.col || !placement.row) {
+          throw new AppError(400, 'INVALID_VALUE', 'Each drawer placement must have col and row')
         }
-        if (!validSizeNames.includes(placement.size)) {
-          throw new AppError(400, 'INVALID_VALUE', `Invalid drawer size: ${placement.size}`)
+        if (!placement.widthUnits || placement.widthUnits < 1) {
+          throw new AppError(400, 'INVALID_VALUE', 'Each drawer placement must have widthUnits >= 1')
+        }
+        if (!placement.heightUnits || placement.heightUnits < 1) {
+          throw new AppError(400, 'INVALID_VALUE', 'Each drawer placement must have heightUnits >= 1')
+        }
+        // Validate placement fits within grid
+        if (placement.col + placement.widthUnits - 1 > effectiveColumns) {
+          throw new AppError(400, 'INVALID_VALUE', `Drawer at col ${placement.col} exceeds grid columns`)
+        }
+        if (placement.row + placement.heightUnits - 1 > effectiveRows) {
+          throw new AppError(400, 'INVALID_VALUE', `Drawer at row ${placement.row} exceeds grid rows`)
         }
       }
     }

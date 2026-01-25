@@ -42,7 +42,7 @@ const {
 } = useDragDrop()
 
 const slotStyle = computed(() => {
-  if (!props.drawer?.drawerSize) {
+  if (!props.drawer) {
     return {
       '--drawer-col': props.column,
       '--drawer-col-span': 1,
@@ -53,9 +53,9 @@ const slotStyle = computed(() => {
 
   return {
     '--drawer-col': props.drawer.gridColumn,
-    '--drawer-col-span': props.drawer.drawerSize.widthUnits,
+    '--drawer-col-span': props.drawer.widthUnits,
     '--drawer-row': props.drawer.gridRow,
-    '--drawer-row-span': props.drawer.drawerSize.heightUnits
+    '--drawer-row-span': props.drawer.heightUnits
   }
 })
 
@@ -90,16 +90,16 @@ const isInvalidTarget = computed(() => {
 
 // Get the size info of the dragged drawer for display
 const draggedDrawerSize = computed(() => {
-  if (!dragData.value?.size) return { width: 1, height: 1 }
+  if (!dragData.value?.widthUnits || !dragData.value?.heightUnits) return { width: 1, height: 1 }
   return {
-    width: dragData.value.size.widthUnits,
-    height: dragData.value.size.heightUnits
+    width: dragData.value.widthUnits,
+    height: dragData.value.heightUnits
   }
 })
 
 // Show the drawer extent indicator when hovering over a valid drop target
 const showDrawerExtent = computed(() => {
-  return isCurrentDragOver.value && isValidDropTarget.value && dragData.value?.size
+  return isCurrentDragOver.value && isValidDropTarget.value && dragData.value?.widthUnits
 })
 
 // Calculate how the drawer would span from this position

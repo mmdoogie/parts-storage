@@ -1,22 +1,13 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import * as drawerService from '@/services/drawerService'
-import type { Drawer, DrawerSize, Part, PartLink, Category } from '@/types'
+import type { Drawer, Part, PartLink, Category } from '@/types'
 
 export const useDrawerStore = defineStore('drawer', () => {
   const drawers = ref<Map<number, Drawer>>(new Map())
-  const drawerSizes = ref<DrawerSize[]>([])
   const openDrawerId = ref<number | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
-
-  async function fetchDrawerSizes() {
-    try {
-      drawerSizes.value = await drawerService.getDrawerSizes()
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to fetch drawer sizes'
-    }
-  }
 
   async function fetchDrawer(id: number) {
     loading.value = true
@@ -35,7 +26,8 @@ export const useDrawerStore = defineStore('drawer', () => {
 
   async function createDrawer(data: {
     caseId: number
-    drawerSizeId: number
+    widthUnits?: number
+    heightUnits?: number
     gridColumn: number
     gridRow: number
     name?: string
@@ -186,20 +178,13 @@ export const useDrawerStore = defineStore('drawer', () => {
 
   const getDrawerById = computed(() => (id: number) => drawers.value.get(id))
 
-  const getSizeByName = computed(() => (name: string) =>
-    drawerSizes.value.find(s => s.name === name)
-  )
-
   return {
     drawers,
-    drawerSizes,
     openDrawerId,
     openDrawer,
     loading,
     error,
     getDrawerById,
-    getSizeByName,
-    fetchDrawerSizes,
     fetchDrawer,
     createDrawer,
     updateDrawer,

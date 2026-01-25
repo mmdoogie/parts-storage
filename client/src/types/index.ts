@@ -38,18 +38,11 @@ export interface Case {
   updatedAt: string
 }
 
-export interface DrawerSize {
-  id: number
-  name: 'small' | 'medium' | 'large' | 'wide' | 'tall' | string
-  widthUnits: number
-  heightUnits: number
-}
-
 export interface Drawer {
   id: number
   caseId: number
-  drawerSizeId: number
-  drawerSize?: DrawerSize
+  widthUnits: number
+  heightUnits: number
   name: string | null
   gridColumn: number
   gridRow: number
@@ -104,7 +97,8 @@ export interface LayoutTemplate {
 export interface DrawerPlacement {
   col: number
   row: number
-  size: string
+  widthUnits: number
+  heightUnits: number
 }
 
 // Search types
@@ -130,7 +124,8 @@ export interface DragData {
   type: 'drawer' | 'case'
   id: number
   sourceCase?: number
-  size?: DrawerSize
+  widthUnits?: number
+  heightUnits?: number
 }
 
 export interface DropTarget {

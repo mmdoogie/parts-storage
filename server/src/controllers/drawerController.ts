@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import { getDb, toCamelCase } from '../config/database.js'
 import { AppError } from '../middleware/errorHandler.js'
 import { storageEvents } from '../events.js'
-import type { Drawer, DrawerSize, Part, Category, PartLink } from '../types/index.js'
+import type { Drawer, Part, Category, PartLink } from '../types/index.js'
 
 // Helper to get wallId from drawerId
 function getWallIdFromDrawer(db: ReturnType<typeof getDb>, drawerId: number): number | undefined {
@@ -14,36 +14,20 @@ function getWallIdFromDrawer(db: ReturnType<typeof getDb>, drawerId: number): nu
   return result?.wall_id
 }
 
-export function getDrawerSizes(_req: Request, res: Response, next: NextFunction) {
-  try {
-    const db = getDb()
-    const rows = db.prepare('SELECT * FROM drawer_sizes ORDER BY width_units, height_units').all()
-    const sizes = rows.map(row => toCamelCase<DrawerSize>(row as Record<string, unknown>))
-
-    res.json({ success: true, data: sizes })
-  } catch (err) {
-    next(err)
-  }
-}
-
 export function getDrawer(req: Request, res: Response, next: NextFunction) {
   try {
     const db = getDb()
     const { id } = req.params
 
     const drawerRow = db.prepare(`
-      SELECT d.*, ds.name as size_name, ds.width_units, ds.height_units
-      FROM drawers d
-      JOIN drawer_sizes ds ON d.drawer_size_id = ds.id
-      WHERE d.id = ?
+      SELECT * FROM drawers WHERE id = ?
     `).get(id)
 
     if (!drawerRow) {
       throw new AppError(404, 'NOT_FOUND', 'Drawer not found')
     }
 
-    const dr = drawerRow as Record<string, unknown>
-    const drawer = toCamelCase<Drawer>(dr)
+    const drawer = toCamelCase<Drawer>(drawerRow as Record<string, unknown>)
 
     // Get drawer categories
     const categoryRows = db.prepare(`
@@ -75,12 +59,6 @@ export function getDrawer(req: Request, res: Response, next: NextFunction) {
       success: true,
       data: {
         ...drawer,
-        drawerSize: {
-          id: dr.drawer_size_id as number,
-          name: dr.size_name as string,
-          widthUnits: dr.width_units as number,
-          heightUnits: dr.height_units as number
-        },
         categories,
         parts
       }
@@ -93,38 +71,57 @@ export function getDrawer(req: Request, res: Response, next: NextFunction) {
 export function createDrawer(req: Request, res: Response, next: NextFunction) {
   try {
     const db = getDb()
-    const { caseId, drawerSizeId, name = null, gridColumn, gridRow, color = '#FFE4B5' } = req.body
+    const { caseId, widthUnits = 1, heightUnits = 1, name = null, gridColumn, gridRow, color = '#FFE4B5' } = req.body
 
-    if (!caseId || !drawerSizeId || gridColumn === undefined || gridRow === undefined) {
-      throw new AppError(400, 'MISSING_FIELD', 'caseId, drawerSizeId, gridColumn, and gridRow are required')
+    if (!caseId || gridColumn === undefined || gridRow === undefined) {
+      throw new AppError(400, 'MISSING_FIELD', 'caseId, gridColumn, and gridRow are required')
     }
 
-    // Verify case exists
-    const caseExists = db.prepare('SELECT id FROM cases WHERE id = ?').get(caseId)
-    if (!caseExists) {
+    if (widthUnits < 1 || heightUnits < 1) {
+      throw new AppError(400, 'INVALID_VALUE', 'widthUnits and heightUnits must be at least 1')
+    }
+
+    // Verify case exists and get its dimensions
+    const caseData = db.prepare('SELECT * FROM cases WHERE id = ?').get(caseId) as Record<string, unknown> | undefined
+    if (!caseData) {
       throw new AppError(404, 'NOT_FOUND', 'Case not found')
     }
 
-    // Verify size exists
-    const sizeExists = db.prepare('SELECT id FROM drawer_sizes WHERE id = ?').get(drawerSizeId)
-    if (!sizeExists) {
-      throw new AppError(404, 'NOT_FOUND', 'Drawer size not found')
+    // Check if drawer fits within case
+    const caseColumns = caseData.internal_columns as number
+    const caseRows = caseData.internal_rows as number
+
+    if (gridColumn < 1 || gridColumn + widthUnits - 1 > caseColumns ||
+        gridRow < 1 || gridRow + heightUnits - 1 > caseRows) {
+      throw new AppError(400, 'INVALID_POSITION', 'Drawer does not fit at target position')
+    }
+
+    // Check for collision with other drawers
+    const otherDrawers = db.prepare(`
+      SELECT * FROM drawers WHERE case_id = ?
+    `).all(caseId) as Record<string, unknown>[]
+
+    for (const other of otherDrawers) {
+      const otherCol = other.grid_column as number
+      const otherRow = other.grid_row as number
+      const otherWidth = other.width_units as number
+      const otherHeight = other.height_units as number
+
+      const xOverlap = gridColumn < otherCol + otherWidth && gridColumn + widthUnits > otherCol
+      const yOverlap = gridRow < otherRow + otherHeight && gridRow + heightUnits > otherRow
+
+      if (xOverlap && yOverlap) {
+        throw new AppError(400, 'POSITION_OCCUPIED', 'Target position overlaps with another drawer')
+      }
     }
 
     const result = db.prepare(`
-      INSERT INTO drawers (case_id, drawer_size_id, name, grid_column, grid_row, color)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(caseId, drawerSizeId, name, gridColumn, gridRow, color)
+      INSERT INTO drawers (case_id, width_units, height_units, name, grid_column, grid_row, color)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(caseId, widthUnits, heightUnits, name, gridColumn, gridRow, color)
 
-    const drawerRow = db.prepare(`
-      SELECT d.*, ds.name as size_name, ds.width_units, ds.height_units
-      FROM drawers d
-      JOIN drawer_sizes ds ON d.drawer_size_id = ds.id
-      WHERE d.id = ?
-    `).get(result.lastInsertRowid)
-
-    const dr = drawerRow as Record<string, unknown>
-    const drawer = toCamelCase<Drawer>(dr)
+    const drawerRow = db.prepare('SELECT * FROM drawers WHERE id = ?').get(result.lastInsertRowid)
+    const drawer = toCamelCase<Drawer>(drawerRow as Record<string, unknown>)
 
     // Broadcast event
     const wallId = getWallIdFromDrawer(db, drawer.id)
@@ -136,12 +133,6 @@ export function createDrawer(req: Request, res: Response, next: NextFunction) {
       success: true,
       data: {
         ...drawer,
-        drawerSize: {
-          id: dr.drawer_size_id as number,
-          name: dr.size_name as string,
-          widthUnits: dr.width_units as number,
-          heightUnits: dr.height_units as number
-        },
         categories: [],
         parts: []
       }
@@ -189,15 +180,8 @@ export function updateDrawer(req: Request, res: Response, next: NextFunction) {
       `).run(...values)
     }
 
-    const drawerRow = db.prepare(`
-      SELECT d.*, ds.name as size_name, ds.width_units, ds.height_units
-      FROM drawers d
-      JOIN drawer_sizes ds ON d.drawer_size_id = ds.id
-      WHERE d.id = ?
-    `).get(id)
-
-    const dr = drawerRow as Record<string, unknown>
-    const drawer = toCamelCase<Drawer>(dr)
+    const drawerRow = db.prepare('SELECT * FROM drawers WHERE id = ?').get(id)
+    const drawer = toCamelCase<Drawer>(drawerRow as Record<string, unknown>)
 
     // Get drawer categories
     const categoryRows = db.prepare(`
@@ -235,12 +219,6 @@ export function updateDrawer(req: Request, res: Response, next: NextFunction) {
       success: true,
       data: {
         ...drawer,
-        drawerSize: {
-          id: dr.drawer_size_id as number,
-          name: dr.size_name as string,
-          widthUnits: dr.width_units as number,
-          heightUnits: dr.height_units as number
-        },
         categories,
         parts
       }
@@ -256,12 +234,7 @@ export function moveDrawer(req: Request, res: Response, next: NextFunction) {
     const { id } = req.params
     const { targetCaseId, gridColumn, gridRow } = req.body
 
-    const drawer = db.prepare(`
-      SELECT d.*, ds.width_units, ds.height_units
-      FROM drawers d
-      JOIN drawer_sizes ds ON d.drawer_size_id = ds.id
-      WHERE d.id = ?
-    `).get(id) as Record<string, unknown> | undefined
+    const drawer = db.prepare('SELECT * FROM drawers WHERE id = ?').get(id) as Record<string, unknown> | undefined
 
     if (!drawer) {
       throw new AppError(404, 'NOT_FOUND', 'Drawer not found')
@@ -285,10 +258,7 @@ export function moveDrawer(req: Request, res: Response, next: NextFunction) {
 
     // Check for collision with other drawers (excluding self)
     const otherDrawers = db.prepare(`
-      SELECT d.*, ds.width_units, ds.height_units
-      FROM drawers d
-      JOIN drawer_sizes ds ON d.drawer_size_id = ds.id
-      WHERE d.case_id = ? AND d.id != ?
+      SELECT * FROM drawers WHERE case_id = ? AND id != ?
     `).all(targetCaseId, id) as Record<string, unknown>[]
 
     for (const other of otherDrawers) {
@@ -313,15 +283,8 @@ export function moveDrawer(req: Request, res: Response, next: NextFunction) {
       WHERE id = ?
     `).run(targetCaseId, gridColumn, gridRow, id)
 
-    const updatedDrawer = db.prepare(`
-      SELECT d.*, ds.name as size_name, ds.width_units, ds.height_units
-      FROM drawers d
-      JOIN drawer_sizes ds ON d.drawer_size_id = ds.id
-      WHERE d.id = ?
-    `).get(id)
-
-    const dr = updatedDrawer as Record<string, unknown>
-    const movedDrawer = toCamelCase<Drawer>(dr)
+    const updatedDrawer = db.prepare('SELECT * FROM drawers WHERE id = ?').get(id)
+    const movedDrawer = toCamelCase<Drawer>(updatedDrawer as Record<string, unknown>)
 
     // Broadcast event
     const wallId = getWallIdFromDrawer(db, movedDrawer.id)
@@ -331,15 +294,7 @@ export function moveDrawer(req: Request, res: Response, next: NextFunction) {
 
     res.json({
       success: true,
-      data: {
-        ...movedDrawer,
-        drawerSize: {
-          id: dr.drawer_size_id as number,
-          name: dr.size_name as string,
-          widthUnits: dr.width_units as number,
-          heightUnits: dr.height_units as number
-        }
-      }
+      data: movedDrawer
     })
   } catch (err) {
     next(err)
@@ -440,115 +395,6 @@ export function removeCategoryFromDrawer(req: Request, res: Response, next: Next
     if (wallId) {
       storageEvents.broadcast({ type: 'drawer:updated', wallId, drawerId })
     }
-
-    res.json({ success: true, data: null })
-  } catch (err) {
-    next(err)
-  }
-}
-
-// Drawer Size CRUD operations
-export function createDrawerSize(req: Request, res: Response, next: NextFunction) {
-  try {
-    const db = getDb()
-    const { name, widthUnits, heightUnits } = req.body
-
-    if (!name || widthUnits === undefined || heightUnits === undefined) {
-      throw new AppError(400, 'MISSING_FIELD', 'name, widthUnits, and heightUnits are required')
-    }
-
-    if (widthUnits < 1 || heightUnits < 1) {
-      throw new AppError(400, 'INVALID_VALUE', 'Width and height units must be at least 1')
-    }
-
-    // Check for duplicate name
-    const existing = db.prepare('SELECT id FROM drawer_sizes WHERE name = ?').get(name)
-    if (existing) {
-      throw new AppError(409, 'DUPLICATE_NAME', 'A drawer size with this name already exists')
-    }
-
-    const result = db.prepare(`
-      INSERT INTO drawer_sizes (name, width_units, height_units)
-      VALUES (?, ?, ?)
-    `).run(name, widthUnits, heightUnits)
-
-    const sizeRow = db.prepare('SELECT * FROM drawer_sizes WHERE id = ?').get(result.lastInsertRowid)
-    const size = toCamelCase<DrawerSize>(sizeRow as Record<string, unknown>)
-
-    res.status(201).json({ success: true, data: size })
-  } catch (err) {
-    next(err)
-  }
-}
-
-export function updateDrawerSize(req: Request, res: Response, next: NextFunction) {
-  try {
-    const db = getDb()
-    const { id } = req.params
-    const { name, widthUnits, heightUnits } = req.body
-
-    const existing = db.prepare('SELECT * FROM drawer_sizes WHERE id = ?').get(id)
-    if (!existing) {
-      throw new AppError(404, 'NOT_FOUND', 'Drawer size not found')
-    }
-
-    // Check for duplicate name (excluding current record)
-    if (name) {
-      const duplicate = db.prepare('SELECT id FROM drawer_sizes WHERE name = ? AND id != ?').get(name, id)
-      if (duplicate) {
-        throw new AppError(409, 'DUPLICATE_NAME', 'A drawer size with this name already exists')
-      }
-    }
-
-    if ((widthUnits !== undefined && widthUnits < 1) || (heightUnits !== undefined && heightUnits < 1)) {
-      throw new AppError(400, 'INVALID_VALUE', 'Width and height units must be at least 1')
-    }
-
-    db.prepare(`
-      UPDATE drawer_sizes
-      SET name = COALESCE(?, name),
-          width_units = COALESCE(?, width_units),
-          height_units = COALESCE(?, height_units)
-      WHERE id = ?
-    `).run(name, widthUnits, heightUnits, id)
-
-    const sizeRow = db.prepare('SELECT * FROM drawer_sizes WHERE id = ?').get(id)
-    const size = toCamelCase<DrawerSize>(sizeRow as Record<string, unknown>)
-
-    res.json({ success: true, data: size })
-  } catch (err) {
-    next(err)
-  }
-}
-
-export function deleteDrawerSize(req: Request, res: Response, next: NextFunction) {
-  try {
-    const db = getDb()
-    const { id } = req.params
-
-    const existing = db.prepare('SELECT * FROM drawer_sizes WHERE id = ?').get(id)
-    if (!existing) {
-      throw new AppError(404, 'NOT_FOUND', 'Drawer size not found')
-    }
-
-    // Check if the size is in use by any drawers
-    const inUse = db.prepare('SELECT COUNT(*) as count FROM drawers WHERE drawer_size_id = ?').get(id) as { count: number }
-    if (inUse.count > 0) {
-      throw new AppError(400, 'IN_USE', `Cannot delete drawer size: it is used by ${inUse.count} drawer(s)`)
-    }
-
-    // Check if the size is referenced in any layout templates
-    const templates = db.prepare('SELECT id, name, layout_data FROM layout_templates').all() as Array<{ id: number, name: string, layout_data: string }>
-    const sizeName = (existing as Record<string, unknown>).name as string
-
-    for (const template of templates) {
-      const layoutData = JSON.parse(template.layout_data) as Array<{ size: string }>
-      if (layoutData.some(placement => placement.size === sizeName)) {
-        throw new AppError(400, 'IN_USE', `Cannot delete drawer size: it is referenced in layout template "${template.name}"`)
-      }
-    }
-
-    db.prepare('DELETE FROM drawer_sizes WHERE id = ?').run(id)
 
     res.json({ success: true, data: null })
   } catch (err) {

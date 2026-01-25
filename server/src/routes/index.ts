@@ -63,12 +63,6 @@ router.post('/layout-templates', caseController.createLayoutTemplate)
 router.put('/layout-templates/:id', caseController.updateLayoutTemplate)
 router.delete('/layout-templates/:id', caseController.deleteLayoutTemplate)
 
-// Drawer Sizes
-router.get('/drawer-sizes', drawerController.getDrawerSizes)
-router.post('/drawer-sizes', drawerController.createDrawerSize)
-router.put('/drawer-sizes/:id', drawerController.updateDrawerSize)
-router.delete('/drawer-sizes/:id', drawerController.deleteDrawerSize)
-
 // Drawers
 router.get('/drawers/:id', drawerController.getDrawer)
 router.post('/drawers', drawerController.createDrawer)
