@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useCategoryStore } from '@/stores'
 import BaseButton from '@/components/base/BaseButton.vue'
 import BaseInput from '@/components/base/BaseInput.vue'
@@ -8,6 +8,11 @@ import type { Category } from '@/types'
 import type { CategoryDrawer } from '@/services/categoryService'
 
 const categoryStore = useCategoryStore()
+
+// Get existing category colors for the color picker
+const existingCategoryColors = computed(() =>
+  categoryStore.categories.map(c => c.color)
+)
 
 // Form state
 const isAdding = ref(false)
@@ -189,7 +194,7 @@ async function confirmDelete() {
         />
       </div>
       <div class="form-row">
-        <ColorPicker v-model="formData.color" label="Color" />
+        <ColorPicker v-model="formData.color" label="Color" :existing-colors="existingCategoryColors" />
       </div>
       <div v-if="formError" class="form-error">{{ formError }}</div>
       <div class="form-actions">
