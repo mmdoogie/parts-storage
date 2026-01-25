@@ -54,6 +54,21 @@ def fetch_layout_templates(api_url):
         return None
 
 
+def fetch_drawer_sizes(api_url):
+    """Fetch all drawer sizes from the API."""
+    try:
+        response = requests.get(f'{api_url}/api/v1/drawer-sizes')
+        response.raise_for_status()
+        result = response.json()
+        # API returns {'success': true, 'data': [...]}
+        if isinstance(result, dict) and 'data' in result:
+            return result['data']
+        return result
+    except requests.RequestException as e:
+        print(f'Error fetching drawer sizes: {e}')
+        return None
+
+
 def find_layout_by_name(templates, name):
     """Find a layout template by name (case-insensitive partial match)."""
     name_lower = name.lower()
@@ -189,7 +204,7 @@ def perspective_transform(img, corners, output_size=None):
     return warped, case_bounds
 
 
-def find_white_labels(img):
+def find_white_labels(img, output_dir):
     """
     Find white label rectangles in the image.
     Labels are white rectangles typically at the bottom of each drawer.
@@ -200,17 +215,20 @@ def find_white_labels(img):
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
     # White has low saturation and high value
-    lower_white = np.array([0, 0, 200])
+    lower_white = np.array([0, 0, 180])
     upper_white = np.array([180, 40, 255])
 
     white_mask = cv2.inRange(hsv, lower_white, upper_white)
+    cv2.imwrite(str(output_dir / 'debug_mask_1.png'), white_mask)
 
     # Clean up the mask
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
     white_mask = cv2.morphologyEx(white_mask, cv2.MORPH_OPEN, kernel)
+    cv2.imwrite(str(output_dir / 'debug_mask_2.png'), white_mask)
 
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (11, 11))
     white_mask = cv2.morphologyEx(white_mask, cv2.MORPH_CLOSE, kernel)
+    cv2.imwrite(str(output_dir / 'debug_mask_3.png'), white_mask)
 
     # Find contours of white regions
     contours, _ = cv2.findContours(white_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -242,10 +260,10 @@ def find_white_labels(img):
     return labels
 
 
-def assign_labels_to_grid(labels, case_bounds, layout):
+def assign_labels_to_grid(labels, case_bounds, layout, drawer_sizes):
     """
-    Assign detected labels to grid positions based on their coordinates.
-    Uses case_bounds from ArUco marker detection and layout template for grid dimensions.
+    Assign detected labels to drawer positions based on their coordinates.
+    Uses case_bounds from ArUco marker detection and layout template for variable drawer sizes.
     """
     if not labels:
         return {}, None
@@ -254,56 +272,111 @@ def assign_labels_to_grid(labels, case_bounds, layout):
     grid_rows = layout['rows']
     layout_data = layout.get('layoutData', [])
 
-    # Build set of valid drawer positions from layout
-    valid_positions = {(d['row'], d['col']) for d in layout_data}
+    # Create mapping of size names to dimensions
+    size_map = {size['name']: size for size in drawer_sizes}
 
+    # Calculate actual pixel boundaries for each drawer based on its size
     grid_left, grid_top, grid_right, grid_bottom = case_bounds
     print(f"Using case bounds for grid: ({grid_left}, {grid_top}) to ({grid_right}, {grid_bottom})")
 
     grid_width = grid_right - grid_left
     grid_height = grid_bottom - grid_top
 
-    cell_width = grid_width / grid_cols
-    cell_height = grid_height / grid_rows
+    # Calculate base unit size (smallest possible grid cell)
+    unit_width = grid_width / grid_cols
+    unit_height = grid_height / grid_rows
 
-    print(f"Grid: {grid_cols} cols x {grid_rows} rows")
-    print(f"Cell size: {cell_width:.1f} x {cell_height:.1f}")
-    print(f"Layout has {len(valid_positions)} drawer positions")
+    print(f'Grid: {grid_cols} cols x {grid_rows} rows')
+    print(f'Base unit size: {unit_width:.1f} x {unit_height:.1f}')
 
-    # Assign each label to a grid cell based on label center position
+    # Build drawer boundary map for variable-sized drawers
+    drawer_boundaries = {}
+    valid_positions = set()
+
+    for drawer in layout_data:
+        row = drawer['row']
+        col = drawer['col']
+        size_name = drawer['size']
+
+        # Get drawer dimensions in grid units
+        size_info = size_map.get(size_name)
+        if not size_info:
+            print(
+                f'Warning: Unknown drawer size '{size_name}' for position ({row}, {col})'
+            )
+            continue
+
+        width_units = size_info['widthUnits']
+        height_units = size_info['heightUnits']
+
+        # Calculate pixel boundaries for this drawer
+        # Convert from 1-indexed layout coords to 0-indexed pixel coords
+        left = grid_left + (col - 1) * unit_width
+        top = grid_top + (row - 1) * unit_height
+        right = left + width_units * unit_width
+        bottom = top + height_units * unit_height
+
+        drawer_boundaries[(row, col)] = {
+            'left': left,
+            'top': top,
+            'right': right,
+            'bottom': bottom,
+            'width': right - left,
+            'height': bottom - top,
+            'center_x': (left + right) / 2,
+            'center_y': (top + bottom) / 2,
+        }
+        valid_positions.add((row, col))
+
+    print(f'Layout has {len(valid_positions)} drawer positions with variable sizes')
+
+    # Assign each label to the closest drawer based on distance to center
     grid_labels = {}
     for label in labels:
         # Use center of label
         cx = label['cx']
         cy = label['cy']
 
-        # Calculate grid position
-        col = int((cx - grid_left) / cell_width)
-        row = int((cy - grid_top) / cell_height)
+        # Find the drawer whose center is closest to this label
+        best_position = None
+        min_distance = float('inf')
 
-        # Clamp to valid range
-        col = max(0, min(col, grid_cols - 1))
-        row = max(0, min(row, grid_rows - 1))
+        for (row, col), bounds in drawer_boundaries.items():
+            # Calculate distance from label center to drawer center
+            dx = cx - bounds['center_x']
+            dy = cy - bounds['center_y']
+            distance = dx * dx + dy * dy  # Squared distance (no need for sqrt)
 
-        key = (row + 1, col + 1)  # 1-indexed
+            if distance < min_distance:
+                min_distance = distance
+                best_position = (row, col)
 
-        # Only accept labels that fall within valid drawer positions
-        if key not in valid_positions:
-            continue
-
-        # Keep the label with the largest area for each position
-        if key not in grid_labels or label['area'] > grid_labels[key]['area']:
-            grid_labels[key] = label
+        # Check if label is reasonably close to the best drawer (within drawer bounds)
+        if best_position:
+            bounds = drawer_boundaries[best_position]
+            # Check if label center is within or very close to drawer bounds
+            margin = max(bounds['width'], bounds['height']) * 0.3  # 30% margin
+            if (
+                bounds['left'] - margin <= cx <= bounds['right'] + margin
+                and bounds['top'] - margin <= cy <= bounds['bottom'] + margin
+            ):
+                # Keep the label with the largest area for each position
+                if (
+                    best_position not in grid_labels
+                    or label['area'] > grid_labels[best_position]['area']
+                ):
+                    grid_labels[best_position] = label
 
     grid_info = {
         'left': grid_left,
         'top': grid_top,
         'right': grid_right,
         'bottom': grid_bottom,
-        'cell_width': cell_width,
-        'cell_height': cell_height,
+        'unit_width': unit_width,
+        'unit_height': unit_height,
         'columns': grid_cols,
-        'rows': grid_rows
+        'rows': grid_rows,
+        'drawer_boundaries': drawer_boundaries,
     }
 
     return grid_labels, grid_info
@@ -394,24 +467,50 @@ def save_debug_image(img, labels, grid_labels, grid_info, output_path="debug_det
 
     # Draw grid lines using the provided grid_info
     if grid_info:
-        grid_left = grid_info['left']
-        grid_right = grid_info['right']
-        grid_top = grid_info['top']
-        grid_bottom = grid_info['bottom']
-        cell_width = grid_info['cell_width']
-        cell_height = grid_info['cell_height']
-        grid_cols = grid_info['columns']
-        grid_rows = grid_info['rows']
+        if 'drawer_boundaries' in grid_info:
+            # Draw individual drawer boundaries for variable-sized drawers
+            drawer_boundaries = grid_info['drawer_boundaries']
+            for (row, col), bounds in drawer_boundaries.items():
+                # Scale coordinates for debug image
+                left = int(bounds['left'] * scale)
+                right = int(bounds['right'] * scale)
+                top = int(bounds['top'] * scale)
+                bottom = int(bounds['bottom'] * scale)
 
-        # Draw vertical grid lines
-        for i in range(grid_cols + 1):
-            x = int((grid_left + i * cell_width) * scale)
-            cv2.line(debug_img, (x, int(grid_top * scale)), (x, int(grid_bottom * scale)), (0, 0, 255), 1)
+                # Draw rectangle for this drawer
+                cv2.rectangle(debug_img, (left, top), (right, bottom), (0, 0, 255), 1)
+        else:
+            # Fallback to uniform grid for backward compatibility
+            grid_left = grid_info['left']
+            grid_right = grid_info['right']
+            grid_top = grid_info['top']
+            grid_bottom = grid_info['bottom']
+            cell_width = grid_info['cell_width']
+            cell_height = grid_info['cell_height']
+            grid_cols = grid_info['columns']
+            grid_rows = grid_info['rows']
 
-        # Draw horizontal grid lines
-        for i in range(grid_rows + 1):
-            y = int((grid_top + i * cell_height) * scale)
-            cv2.line(debug_img, (int(grid_left * scale), y), (int(grid_right * scale), y), (0, 0, 255), 1)
+            # Draw vertical grid lines
+            for i in range(grid_cols + 1):
+                x = int((grid_left + i * cell_width) * scale)
+                cv2.line(
+                    debug_img,
+                    (x, int(grid_top * scale)),
+                    (x, int(grid_bottom * scale)),
+                    (0, 0, 255),
+                    1,
+                )
+
+            # Draw horizontal grid lines
+            for i in range(grid_rows + 1):
+                y = int((grid_top + i * cell_height) * scale)
+                cv2.line(
+                    debug_img,
+                    (int(grid_left * scale), y),
+                    (int(grid_right * scale), y),
+                    (0, 0, 255),
+                    1,
+                )
 
     cv2.imwrite(str(output_path), debug_img)
     print(f"Saved debug image to {output_path}")
@@ -427,14 +526,9 @@ Examples:
   %(prog)s --layout "8x8" image.png
   %(prog)s --layout "Akro-Mils 10164" --api-url http://localhost:3000 photo.jpg
   %(prog)s --list-layouts
-        """
+        """,
     )
-    parser.add_argument(
-        "image",
-        nargs="?",
-        type=Path,
-        help="Input image file"
-    )
+    parser.add_argument('image', nargs='?', type=Path, help='Input image file')
     parser.add_argument(
         "--layout", "-l",
         required=False,
@@ -506,6 +600,7 @@ def main():
     print(f"Image size: {width} x {height}")
 
     output_dir = args.output_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Step 1: Detect all four ArUco markers
     print("\n--- Detecting ArUco markers ---")
@@ -525,11 +620,15 @@ def main():
 
     # Step 3: Find white labels in the rectified image
     print("\n--- Finding white labels ---")
-    labels = find_white_labels(img_rectified)
+    labels = find_white_labels(img_rectified, output_dir)
 
     # Step 4: Assign labels to grid positions using case bounds and layout
     print("\n--- Assigning labels to grid ---")
-    grid_labels, grid_info = assign_labels_to_grid(labels, case_bounds, layout)
+    # Fetch drawer sizes to handle variable-sized drawers
+    drawer_sizes = fetch_drawer_sizes(args.api_url)
+    grid_labels, grid_info = assign_labels_to_grid(
+        labels, case_bounds, layout, drawer_sizes
+    )
 
     print(f"Assigned {len(grid_labels)} labels to grid positions")
 
