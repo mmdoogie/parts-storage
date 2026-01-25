@@ -182,6 +182,20 @@ async function seed() {
     ])
   )
 
+  // Cube 4 Slot - 1x4 small (vertical stack)
+  insertTemplate.run(
+    'Cube 4 Slot',
+    '1 column x 4 rows of small drawers',
+    1,
+    4,
+    JSON.stringify([
+      { col: 1, row: 1, size: 'small' },
+      { col: 1, row: 2, size: 'small' },
+      { col: 1, row: 3, size: 'small' },
+      { col: 1, row: 4, size: 'small' }
+    ])
+  )
+
   console.log('  - Layout templates seeded')
 
   console.log('Seeding completed successfully!')
