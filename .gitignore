@@ -36,3 +36,10 @@ npm-debug.log*
 
 # mantic
 .mantic
+
+# Python
+.python-version
+
+# Images
+*.png
+*.HEIC
