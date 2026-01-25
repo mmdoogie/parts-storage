@@ -1,0 +1,13 @@
+-- Migration: Remove deprecated drawer_sizes table and foreign key
+-- The drawer dimensions are now stored directly on drawers (width_units, height_units)
+--
+-- NOTE: This migration is handled programmatically in migrate.ts for idempotency.
+-- SQLite cannot drop a column with a foreign key constraint, so the table is recreated.
+--
+-- Operations performed:
+--   1. Create drawers_new table without drawer_size_id column/foreign key
+--   2. Copy data from drawers to drawers_new
+--   3. Drop old drawers table
+--   4. Rename drawers_new to drawers
+--   5. Recreate index on case_id
+--   6. Drop drawer_sizes table

@@ -1,0 +1,10 @@
+-- Migration: Add width_units and height_units directly to drawers table
+-- This removes the dependency on drawer_sizes and stores dimensions per-drawer
+--
+-- NOTE: This migration is handled programmatically in migrate.ts for idempotency.
+-- The logic checks if columns exist before adding them.
+--
+-- Operations performed:
+--   ALTER TABLE drawers ADD COLUMN width_units INTEGER NOT NULL DEFAULT 1;
+--   ALTER TABLE drawers ADD COLUMN height_units INTEGER NOT NULL DEFAULT 1;
+--   UPDATE drawers SET width_units/height_units from drawer_sizes lookup;
