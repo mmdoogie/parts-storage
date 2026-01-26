@@ -165,7 +165,7 @@ function createServer(): McpServer {
   server.registerTool(
     'list_walls',
     {
-      description: 'List all storage walls in the system.',
+      description: 'List all storage walls. Returns id, name, and gridColumns for each wall. Walls are the top-level containers that hold cases.',
       inputSchema: {},
     },
     async () => {
@@ -177,7 +177,7 @@ function createServer(): McpServer {
   server.registerTool(
     'get_wall',
     {
-      description: 'Get a specific wall with all its cases and drawers.',
+      description: 'Get a wall with its nested cases and drawers. Returns wall details plus cases array, each containing their drawers. Use this for a full hierarchy view.',
       inputSchema: {
         wallId: z.number().describe('The ID of the wall to retrieve'),
       },
@@ -191,7 +191,7 @@ function createServer(): McpServer {
   server.registerTool(
     'list_cases',
     {
-      description: 'List all cases, optionally filtered by wall.',
+      description: 'List cases (optionally filtered by wall). Returns id, name, grid position (gridColumnStart/Span, gridRowStart/Span), and internal grid dimensions (internalColumns/Rows).',
       inputSchema: {
         wallId: z.number().optional().describe('Optional wall ID to filter cases'),
       },
@@ -206,7 +206,7 @@ function createServer(): McpServer {
   server.registerTool(
     'get_case',
     {
-      description: 'Get a specific case with all its drawers.',
+      description: 'Get a case with all its drawers. Returns case details including grid position on the wall, internal grid dimensions, and nested drawers array with their positions and parts.',
       inputSchema: {
         caseId: z.number().describe('The ID of the case to retrieve'),
       },
@@ -220,7 +220,7 @@ function createServer(): McpServer {
   server.registerTool(
     'get_drawer',
     {
-      description: 'Get a specific drawer with all its parts.',
+      description: 'Get a drawer with all its parts. Returns drawer position in the case grid (gridColumn, gridRow), size (widthUnits, heightUnits), and nested parts array with names, notes, and links.',
       inputSchema: {
         drawerId: z.number().describe('The ID of the drawer to retrieve'),
       },
@@ -234,7 +234,7 @@ function createServer(): McpServer {
   server.registerTool(
     'list_parts',
     {
-      description: 'List all parts, optionally filtered by drawer.',
+      description: 'List parts (optionally filtered by drawer). Returns id, name, notes, and sortOrder for each part. Parts are items stored in drawers.',
       inputSchema: {
         drawerId: z.number().optional().describe('Optional drawer ID to filter parts'),
       },
@@ -249,7 +249,7 @@ function createServer(): McpServer {
   server.registerTool(
     'get_part',
     {
-      description: 'Get a specific part with its links.',
+      description: 'Get a part with its reference links. Returns name, notes, sortOrder, and links array (URLs with optional titles).',
       inputSchema: {
         partId: z.number().describe('The ID of the part to retrieve'),
       },
@@ -309,7 +309,7 @@ function createServer(): McpServer {
   server.registerTool(
     'move_part',
     {
-      description: 'Move a part to a different drawer or change its position.',
+      description: 'Move a part to a different drawer and/or change its sort order within the drawer. Specify drawerId for destination and/or sortOrder for position.',
       inputSchema: {
         partId: z.number().describe('The ID of the part to move'),
         drawerId: z.number().optional().describe('The ID of the destination drawer'),
@@ -325,7 +325,7 @@ function createServer(): McpServer {
   server.registerTool(
     'create_drawer',
     {
-      description: 'Create a new drawer in a case.',
+      description: 'Create a drawer in a case\'s internal grid. Specify gridColumn/gridRow for position (1-based) and optionally widthUnits/heightUnits for size. Returns the created drawer.',
       inputSchema: {
         caseId: z.number().describe('The ID of the case to add the drawer to'),
         widthUnits: z.number().optional().describe('Width of the drawer in grid units (default: 1)'),
@@ -381,7 +381,7 @@ function createServer(): McpServer {
   server.registerTool(
     'create_case',
     {
-      description: 'Create a new case on a wall.',
+      description: 'Create a case on a wall. Position it on the wall\'s grid with gridColumnStart/gridRowStart and size with gridColumnSpan/gridRowSpan. Set internalColumns/internalRows for the drawer grid inside.',
       inputSchema: {
         wallId: z.number().describe('The ID of the wall to add the case to'),
         name: z.string().describe('Name of the case'),
@@ -708,7 +708,7 @@ function createServer(): McpServer {
   server.registerTool(
     'apply_layout_template',
     {
-      description: 'Apply a layout template to a case, replacing all existing drawers with the template layout.',
+      description: 'Apply a layout template to a case. WARNING: Replaces all existing drawers. The template defines drawer positions and sizes; the case grid is resized to match the template dimensions.',
       inputSchema: {
         caseId: z.number().describe('The ID of the case to apply the template to'),
         templateId: z.number().describe('The ID of the template to apply'),
