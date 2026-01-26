@@ -72,7 +72,7 @@ export function getDrawer(req: Request, res: Response, next: NextFunction) {
 export function createDrawer(req: Request, res: Response, next: NextFunction) {
   try {
     const db = getDb()
-    const { caseId, widthUnits = 1, heightUnits = 1, name = null, gridColumn, gridRow, color = '#FFE4B5' } = req.body
+    const { caseId, widthUnits = 1, heightUnits = 1, name = null, gridColumn, gridRow } = req.body
 
     if (!caseId || gridColumn === undefined || gridRow === undefined) {
       throw new AppError(400, 'MISSING_FIELD', 'caseId, gridColumn, and gridRow are required')
@@ -117,9 +117,9 @@ export function createDrawer(req: Request, res: Response, next: NextFunction) {
     }
 
     const result = db.prepare(`
-      INSERT INTO drawers (case_id, width_units, height_units, name, grid_column, grid_row, color)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(caseId, widthUnits, heightUnits, name, gridColumn, gridRow, color)
+      INSERT INTO drawers (case_id, width_units, height_units, name, grid_column, grid_row)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(caseId, widthUnits, heightUnits, name, gridColumn, gridRow)
 
     const drawerRow = db.prepare('SELECT * FROM drawers WHERE id = ?').get(result.lastInsertRowid)
     const drawer = toCamelCase<Drawer>(drawerRow as Record<string, unknown>)
@@ -149,7 +149,7 @@ export function updateDrawer(req: Request, res: Response, next: NextFunction) {
   try {
     const db = getDb()
     const { id } = req.params
-    const { name, color } = req.body
+    const { name } = req.body
 
     const existing = db.prepare('SELECT * FROM drawers WHERE id = ?').get(id)
     if (!existing) {
@@ -165,11 +165,6 @@ export function updateDrawer(req: Request, res: Response, next: NextFunction) {
       updates.push('name = ?')
       // Convert empty string to null for consistency
       values.push(name === '' ? null : name)
-    }
-
-    if (color !== undefined) {
-      updates.push('color = COALESCE(?, color)')
-      values.push(color)
     }
 
     if (updates.length > 0) {

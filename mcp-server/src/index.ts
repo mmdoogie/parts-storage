@@ -355,11 +355,10 @@ function createServer(): McpServer {
       inputSchema: {
         drawerId: z.number().describe('The ID of the drawer to update'),
         name: z.string().optional().describe('New name for the drawer'),
-        color: z.string().optional().describe('New color for the drawer (hex format)'),
       },
     },
-    async ({ drawerId, name, color }) => {
-      const drawer = await apiRequest<Drawer>(`/drawers/${drawerId}`, 'PUT', { name, color });
+    async ({ drawerId, name }) => {
+      const drawer = await apiRequest<Drawer>(`/drawers/${drawerId}`, 'PUT', { name });
       return { content: [{ type: 'text', text: `Updated drawer ${drawer.id}` }] };
     }
   );

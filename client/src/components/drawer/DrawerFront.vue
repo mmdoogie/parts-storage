@@ -92,7 +92,6 @@ const pullDimensions = computed(() => {
 })
 
 const drawerStyle = computed(() => ({
-  '--drawer-color': props.drawer.color,
   '--drawer-base': lightenedCaseColor.value,
   '--drawer-highlight': drawerHighlight.value,
   '--drawer-shadow': drawerShadow.value,

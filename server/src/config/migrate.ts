@@ -30,7 +30,8 @@ async function migrate() {
     '001_initial_schema.sql',
     '002_drawer_categories.sql',
     '003_drawer_dimensions.sql',
-    '004_drop_drawer_sizes.sql'
+    '004_drop_drawer_sizes.sql',
+    '005_remove_drawer_color.sql'
   ]
 
   for (const file of migrations) {
@@ -89,6 +90,47 @@ async function migrate() {
         }
       } else {
         db.exec('DROP TABLE IF EXISTS drawer_sizes')
+      }
+      continue
+    }
+
+    // Handle 005 specially - recreate table to remove color column
+    if (file === '005_remove_drawer_color.sql') {
+      console.log(`  Running ${file}...`)
+      if (columnExists(db, 'drawers', 'color')) {
+        db.exec('PRAGMA foreign_keys = OFF')
+        db.exec('DROP TABLE IF EXISTS drawers_new')
+        db.exec('BEGIN TRANSACTION')
+        try {
+          db.exec(`
+            CREATE TABLE drawers_new (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              case_id INTEGER NOT NULL,
+              name TEXT,
+              grid_column INTEGER NOT NULL,
+              grid_row INTEGER NOT NULL,
+              width_units INTEGER NOT NULL DEFAULT 1,
+              height_units INTEGER NOT NULL DEFAULT 1,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE
+            )
+          `)
+          db.exec(`
+            INSERT INTO drawers_new (id, case_id, name, grid_column, grid_row, width_units, height_units, created_at, updated_at)
+            SELECT id, case_id, name, grid_column, grid_row, width_units, height_units, created_at, updated_at
+            FROM drawers
+          `)
+          db.exec('DROP TABLE drawers')
+          db.exec('ALTER TABLE drawers_new RENAME TO drawers')
+          db.exec('CREATE INDEX IF NOT EXISTS idx_drawers_case_id ON drawers(case_id)')
+          db.exec('COMMIT')
+        } catch (err) {
+          db.exec('ROLLBACK')
+          throw err
+        } finally {
+          db.exec('PRAGMA foreign_keys = ON')
+        }
       }
       continue
     }

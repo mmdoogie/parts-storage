@@ -248,8 +248,7 @@ function closeDrawer() {
     const updatedDrawer = drawerStore.drawers.get(openDrawerId.value)
     if (updatedDrawer) {
       wallStore.updateDrawerInCase(updatedDrawer.caseId, updatedDrawer.id, {
-        name: updatedDrawer.name,
-        color: updatedDrawer.color
+        name: updatedDrawer.name
       })
       markLocalMutation()
     }

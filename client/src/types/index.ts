@@ -46,7 +46,6 @@ export interface Drawer {
   name: string | null
   gridColumn: number
   gridRow: number
-  color: string
   parts?: Part[]
   partCount?: number
   categories?: Category[]

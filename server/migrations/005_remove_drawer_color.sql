@@ -1,0 +1,12 @@
+-- Migration: Remove unused color column from drawers table
+-- The drawer color was never actually used for rendering; drawers inherit their case's color
+--
+-- NOTE: This migration is handled programmatically in migrate.ts for idempotency.
+-- SQLite requires table recreation to drop a column safely.
+--
+-- Operations performed:
+--   1. Create drawers_new table without color column
+--   2. Copy data from drawers to drawers_new
+--   3. Drop old drawers table
+--   4. Rename drawers_new to drawers
+--   5. Recreate index on case_id

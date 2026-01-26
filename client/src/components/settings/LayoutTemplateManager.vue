@@ -641,7 +641,7 @@ function isCellInDragPreview(col: number, row: number): boolean {
 }
 
 .grid-drawer {
-  background: var(--drawer-color, #FFE4B5);
+  background: #FFE4B5;
   border: 2px solid rgba(0, 0, 0, 0.3);
   border-radius: 3px;
   cursor: pointer;
@@ -758,7 +758,7 @@ function isCellInDragPreview(col: number, row: number): boolean {
 }
 
 .preview-drawer {
-  background: var(--drawer-color, #FFE4B5);
+  background: #FFE4B5;
   border: 1px solid rgba(0, 0, 0, 0.2);
   border-radius: 1px;
 }
