@@ -134,19 +134,24 @@ export function updatePart(req: Request, res: Response, next: NextFunction) {
     const { id } = req.params
     const { name, notes, sortOrder } = req.body
 
-    const existing = db.prepare('SELECT * FROM parts WHERE id = ?').get(id)
+    const existing = db.prepare('SELECT * FROM parts WHERE id = ?').get(id) as Record<string, unknown> | undefined
     if (!existing) {
       throw new AppError(404, 'NOT_FOUND', 'Part not found')
     }
 
+    // Use provided values, falling back to existing values only if undefined
+    const newName = name !== undefined ? name : existing.name
+    const newNotes = notes !== undefined ? notes : existing.notes
+    const newSortOrder = sortOrder !== undefined ? sortOrder : existing.sort_order
+
     db.prepare(`
       UPDATE parts
-      SET name = COALESCE(?, name),
-          notes = COALESCE(?, notes),
-          sort_order = COALESCE(?, sort_order),
+      SET name = ?,
+          notes = ?,
+          sort_order = ?,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(name, notes, sortOrder, id)
+    `).run(newName, newNotes, newSortOrder, id)
 
     const partRow = db.prepare('SELECT * FROM parts WHERE id = ?').get(id)
     const part = toCamelCase<Part>(partRow as Record<string, unknown>)
@@ -274,18 +279,23 @@ export function updateLink(req: Request, res: Response, next: NextFunction) {
     const { id } = req.params
     const { url, title, sortOrder } = req.body
 
-    const existing = db.prepare('SELECT * FROM part_links WHERE id = ?').get(id)
+    const existing = db.prepare('SELECT * FROM part_links WHERE id = ?').get(id) as Record<string, unknown> | undefined
     if (!existing) {
       throw new AppError(404, 'NOT_FOUND', 'Link not found')
     }
 
+    // Use provided values, falling back to existing values only if undefined
+    const newUrl = url !== undefined ? url : existing.url
+    const newTitle = title !== undefined ? title : existing.title
+    const newSortOrder = sortOrder !== undefined ? sortOrder : existing.sort_order
+
     db.prepare(`
       UPDATE part_links
-      SET url = COALESCE(?, url),
-          title = COALESCE(?, title),
-          sort_order = COALESCE(?, sort_order)
+      SET url = ?,
+          title = ?,
+          sort_order = ?
       WHERE id = ?
-    `).run(url, title, sortOrder, id)
+    `).run(newUrl, newTitle, newSortOrder, id)
 
     const link = db.prepare('SELECT * FROM part_links WHERE id = ?').get(id)
 
