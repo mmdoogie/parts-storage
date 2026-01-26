@@ -5,26 +5,6 @@ async function seed() {
 
   const db = getDb()
 
-  // Seed drawer sizes
-  const insertSize = db.prepare(`
-    INSERT OR IGNORE INTO drawer_sizes (name, width_units, height_units)
-    VALUES (?, ?, ?)
-  `)
-
-  const sizes = [
-    ['small', 1, 1],
-    ['medium', 2, 1],
-    ['large', 2, 2],
-    ['wide', 4, 1],
-    ['wide 3', 3, 1],
-    ['tall 3', 1, 3]
-  ]
-
-  for (const [name, width, height] of sizes) {
-    insertSize.run(name, width, height)
-  }
-  console.log('  - Drawer sizes seeded')
-
   // Seed default wall
   const existingWall = db.prepare('SELECT id FROM walls LIMIT 1').get()
   if (!existingWall) {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
-import { useWallStore, useDrawerStore, useCategoryStore, useSearchStore, useCaseStore } from '@/stores'
+import { useWallStore, useDrawerStore, useCategoryStore, useSearchStore } from '@/stores'
 import { lastLocalMutation, markLocalMutation } from '@/composables/useDragDrop'
 import * as caseService from '@/services/caseService'
 import type { LayoutTemplate, Case } from '@/types'
@@ -16,7 +16,6 @@ const wallStore = useWallStore()
 const drawerStore = useDrawerStore()
 const categoryStore = useCategoryStore()
 const searchStore = useSearchStore()
-const caseStore = useCaseStore()
 
 // Scroll position preservation
 const wallViewRef = ref<HTMLElement | null>(null)

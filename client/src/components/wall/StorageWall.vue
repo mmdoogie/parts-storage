@@ -79,7 +79,7 @@ function handleCaseDragEnd() {
 }
 
 // Resize handlers
-function handleResizeStart(caseId: number, event: MouseEvent) {
+function handleResizeStart(caseId: number, _event: MouseEvent) {
   // Don't allow resizing when locked
   if (isLocked.value) return
 

@@ -132,11 +132,6 @@ function getCellDrawer(col: number, row: number): DrawerPlacement | null {
   return null
 }
 
-// Check if a cell is the origin of a drawer
-function isDrawerOrigin(col: number, row: number): boolean {
-  return formData.value.layoutData.some(p => p.col === col && p.row === row)
-}
-
 // Get drawer placement at origin
 function getDrawerAtOrigin(col: number, row: number): DrawerPlacement | null {
   return formData.value.layoutData.find(p => p.col === col && p.row === row) || null

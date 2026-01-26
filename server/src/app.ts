@@ -59,9 +59,10 @@ process.on('SIGTERM', () => {
 })
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`)
-  console.log(`API available at http://localhost:${PORT}/api/v1`)
+const HOST = process.env.HOST || '0.0.0.0'
+app.listen(Number(PORT), HOST, () => {
+  console.log(`Server running on http://${HOST}:${PORT}`)
+  console.log(`API available at http://${HOST}:${PORT}/api/v1`)
 })
 
 export default app

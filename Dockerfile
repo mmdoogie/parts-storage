@@ -4,6 +4,8 @@
 # Stage 1: Build the client
 FROM node:22-slim AS client-builder
 
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
 WORKDIR /app
 
 # Copy package files for dependency installation
@@ -23,6 +25,11 @@ RUN npm run build
 
 # Stage 2: Build the server
 FROM node:22-slim AS server-builder
+
+# Install build dependencies for native modules (better-sqlite3)
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 WORKDIR /app
 
@@ -44,6 +51,8 @@ RUN npm run build
 # Stage 3: Build the MCP server
 FROM node:22-slim AS mcp-builder
 
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
 WORKDIR /app
 
 # Copy package files
@@ -64,6 +73,9 @@ RUN npm run build
 # Stage 4: Production image
 FROM node:22-slim AS production
 
+# Install build dependencies for native modules (better-sqlite3)
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Install production dependencies only
@@ -78,8 +90,12 @@ COPY --from=client-builder /app/client/dist ./client/dist
 COPY --from=server-builder /app/server/dist ./server/dist
 COPY --from=mcp-builder /app/mcp-server/dist ./mcp-server/dist
 
-# Copy server static file serving configuration
-COPY server/src/config ./server/src/config
+# Copy migrations for database initialization
+COPY server/migrations ./server/migrations
+
+# Copy startup script
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
 
 # Create data directory for SQLite database
 RUN mkdir -p /app/data
@@ -98,5 +114,5 @@ EXPOSE 3002 3003
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD node -e "fetch('http://localhost:3002/api/v1/walls').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 
-# Start the server (serves both API and static files)
-CMD ["node", "server/dist/app.js"]
+# Start both servers with migrations
+CMD ["./docker-entrypoint.sh"]

@@ -1,0 +1,12 @@
+services:
+  storage-info:
+    build: .
+    ports:
+      - "3002:3002"
+      - "3003:3003"
+    volumes:
+      - storage-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  storage-data:
