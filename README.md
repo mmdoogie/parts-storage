@@ -83,8 +83,8 @@ Add this to your Claude Desktop configuration (`~/.config/claude/claude_desktop_
 {
   "mcpServers": {
     "parts-storage": {
-      "command": "curl",
-      "args": ["-N", "http://localhost:3003/mcp"]
+      "type": "http",
+      "url": "http://localhost:3003/mcp"
     }
   }
 }
