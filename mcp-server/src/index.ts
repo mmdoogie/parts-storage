@@ -206,13 +206,18 @@ function createServer(): McpServer {
   server.registerTool(
     'get_case',
     {
-      description: 'Get a case with all its drawers. Returns case details including grid position on the wall, internal grid dimensions, and nested drawers array with their positions and parts.',
+      description: 'Get a case by ID. Returns case details including grid position on the wall and internal grid dimensions. Optionally include full detail about all nested drawers.',
       inputSchema: {
         caseId: z.number().describe('The ID of the case to retrieve'),
+        includeDrawers: z.boolean().optional().describe('Include nested drawers array (default: false) (very large output - only use if details of many or all drawers is needed'),
       },
     },
-    async ({ caseId }) => {
+    async ({ caseId, includeDrawers = false }) => {
       const caseData = await apiRequest<Case>(`/cases/${caseId}`);
+      if (!includeDrawers) {
+        const { drawers, ...caseWithoutDrawers } = caseData;
+        return { content: [{ type: 'text', text: JSON.stringify(caseWithoutDrawers, null, 2) }] };
+      }
       return { content: [{ type: 'text', text: JSON.stringify(caseData, null, 2) }] };
     }
   );
