@@ -6,6 +6,8 @@ services:
       - "3003:3003"
     volumes:
       - parts-storage-data:/app/data
+    environment:
+      - MCP_DEBUG=false
     restart: unless-stopped
 
 volumes:

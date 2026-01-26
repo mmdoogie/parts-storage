@@ -9,6 +9,13 @@ import * as z from 'zod';
 
 const API_BASE_URL = process.env.STORAGE_API_URL || 'http://localhost:3002/api/v1';
 const MCP_PORT = process.env.MCP_PORT ? parseInt(process.env.MCP_PORT, 10) : 3003;
+const DEBUG_LOG = process.env.MCP_DEBUG === 'true' || process.env.MCP_DEBUG === '1';
+
+function log(...args: unknown[]): void {
+  if (DEBUG_LOG) {
+    console.log('[MCP]', new Date().toISOString(), ...args);
+  }
+}
 
 interface ApiResponse<T> {
   success: boolean;
@@ -22,6 +29,8 @@ async function apiRequest<T>(
   body?: unknown
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
+  log(`API ${method} ${endpoint}`, body ? JSON.stringify(body) : '');
+
   const options: RequestInit = {
     method,
     headers: {
@@ -37,9 +46,11 @@ async function apiRequest<T>(
   const data: ApiResponse<T> = await response.json();
 
   if (!data.success) {
+    log(`API Error: ${data.error?.message}`);
     throw new Error(data.error?.message || 'API request failed');
   }
 
+  log(`API Success: ${endpoint}`);
   return data.data;
 }
 
@@ -861,6 +872,9 @@ app.delete('/mcp', async (req: Request, res: Response) => {
 
 app.listen(MCP_PORT, () => {
   console.log(`Storage Info MCP server listening on http://localhost:${MCP_PORT}/mcp`);
+  if (DEBUG_LOG) {
+    console.log('Debug logging is enabled (MCP_DEBUG=true)');
+  }
 });
 
 // Handle server shutdown
