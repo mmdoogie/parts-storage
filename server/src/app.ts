@@ -7,6 +7,7 @@ import { dirname, join } from 'path'
 import routes from './routes/index.js'
 import { errorHandler } from './middleware/errorHandler.js'
 import { closeDb } from './config/database.js'
+import { initFuzzyIndex } from './services/fuzzySearchService.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -63,6 +64,7 @@ const HOST = process.env.HOST || '0.0.0.0'
 app.listen(Number(PORT), HOST, () => {
   console.log(`Server running on http://${HOST}:${PORT}`)
   console.log(`API available at http://${HOST}:${PORT}/api/v1`)
+  initFuzzyIndex()
 })
 
 export default app

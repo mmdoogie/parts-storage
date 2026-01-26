@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import { getDb, toCamelCase } from '../config/database.js'
 import { AppError } from '../middleware/errorHandler.js'
+import { markFuzzyIndexStale } from '../services/fuzzySearchService.js'
 import type { Category } from '../types/index.js'
 
 export function getCategories(_req: Request, res: Response, next: NextFunction) {
@@ -50,6 +51,8 @@ export function createCategory(req: Request, res: Response, next: NextFunction) 
 
     const category = db.prepare('SELECT * FROM categories WHERE id = ?').get(result.lastInsertRowid)
 
+    markFuzzyIndexStale()
+
     res.status(201).json({
       success: true,
       data: toCamelCase<Category>(category as Record<string, unknown>)
@@ -81,6 +84,8 @@ export function updateCategory(req: Request, res: Response, next: NextFunction) 
 
     const category = db.prepare('SELECT * FROM categories WHERE id = ?').get(id)
 
+    markFuzzyIndexStale()
+
     res.json({
       success: true,
       data: toCamelCase<Category>(category as Record<string, unknown>)
@@ -101,6 +106,8 @@ export function deleteCategory(req: Request, res: Response, next: NextFunction) 
     }
 
     db.prepare('DELETE FROM categories WHERE id = ?').run(id)
+
+    markFuzzyIndexStale()
 
     res.json({ success: true, data: null })
   } catch (err) {

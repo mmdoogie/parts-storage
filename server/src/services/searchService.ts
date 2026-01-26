@@ -1,5 +1,6 @@
 import { getDb } from '../config/database.js'
 import type { SearchResult } from '../types/index.js'
+import { fuzzySearch } from './fuzzySearchService.js'
 
 export function search(query: string, options: { limit?: number; categoryId?: number } = {}): SearchResult[] {
   const db = getDb()
@@ -349,6 +350,18 @@ export function search(query: string, options: { limit?: number; categoryId?: nu
             drawerName: row.drawer_name as string | null
           }
         })
+      }
+    }
+  }
+
+  // If results are sparse, use fuzzy search as fallback
+  if (results.length < 3) {
+    const fuzzyResults = fuzzySearch(query, limit - results.length)
+    for (const result of fuzzyResults) {
+      const key = `${result.type}-${result.id}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        results.push(result)
       }
     }
   }

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import { getDb, toCamelCase } from '../config/database.js'
 import { AppError } from '../middleware/errorHandler.js'
 import { storageEvents } from '../events.js'
+import { markFuzzyIndexStale } from '../services/fuzzySearchService.js'
 import type { Part, PartLink } from '../types/index.js'
 
 // Helper to get wallId from partId
@@ -113,6 +114,8 @@ export function createPart(req: Request, res: Response, next: NextFunction) {
       storageEvents.broadcast({ type: 'part:created', wallId, partId: part.id })
     }
 
+    markFuzzyIndexStale()
+
     res.status(201).json({
       success: true,
       data: {
@@ -158,6 +161,8 @@ export function updatePart(req: Request, res: Response, next: NextFunction) {
       storageEvents.broadcast({ type: 'part:updated', wallId, partId: part.id })
     }
 
+    markFuzzyIndexStale()
+
     res.json({
       success: true,
       data: {
@@ -190,6 +195,8 @@ export function deletePart(req: Request, res: Response, next: NextFunction) {
     if (wallId) {
       storageEvents.broadcast({ type: 'part:deleted', wallId, partId })
     }
+
+    markFuzzyIndexStale()
 
     res.json({ success: true, data: null })
   } catch (err) {

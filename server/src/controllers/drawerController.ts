@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import { getDb, toCamelCase } from '../config/database.js'
 import { AppError } from '../middleware/errorHandler.js'
 import { storageEvents } from '../events.js'
+import { markFuzzyIndexStale } from '../services/fuzzySearchService.js'
 import type { Drawer, Part, Category, PartLink } from '../types/index.js'
 
 // Helper to get wallId from drawerId
@@ -129,6 +130,8 @@ export function createDrawer(req: Request, res: Response, next: NextFunction) {
       storageEvents.broadcast({ type: 'drawer:created', wallId, drawerId: drawer.id })
     }
 
+    markFuzzyIndexStale()
+
     res.status(201).json({
       success: true,
       data: {
@@ -214,6 +217,8 @@ export function updateDrawer(req: Request, res: Response, next: NextFunction) {
     if (wallId) {
       storageEvents.broadcast({ type: 'drawer:updated', wallId, drawerId: drawer.id })
     }
+
+    markFuzzyIndexStale()
 
     res.json({
       success: true,
@@ -322,6 +327,8 @@ export function deleteDrawer(req: Request, res: Response, next: NextFunction) {
       storageEvents.broadcast({ type: 'drawer:deleted', wallId, drawerId })
     }
 
+    markFuzzyIndexStale()
+
     res.json({ success: true, data: null })
   } catch (err) {
     next(err)
@@ -373,6 +380,8 @@ export function addCategoryToDrawer(req: Request, res: Response, next: NextFunct
       storageEvents.broadcast({ type: 'drawer:updated', wallId, drawerId })
     }
 
+    markFuzzyIndexStale()
+
     res.json({ success: true, data: categories })
   } catch (err) {
     next(err)
@@ -395,6 +404,8 @@ export function removeCategoryFromDrawer(req: Request, res: Response, next: Next
     if (wallId) {
       storageEvents.broadcast({ type: 'drawer:updated', wallId, drawerId })
     }
+
+    markFuzzyIndexStale()
 
     res.json({ success: true, data: null })
   } catch (err) {
